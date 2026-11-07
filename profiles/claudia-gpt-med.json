@@ -1,0 +1,16 @@
+{
+  "name": "GPT-med",
+  "description": "Perfil OpenAI equilibrado: GPT-6.1 Sol medium para coordinación y trabajo exigente; GPT-6 Luna low para tareas acotadas.",
+  "primary": {
+    "model": "openai/gpt-6.1-sol",
+    "variant": "medium"
+  },
+  "agents": {
+    "claudia-simple": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-explorer": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-code": { "model": "openai/gpt-6.1-sol", "variant": "medium" },
+    "claudia-system": { "model": "openai/gpt-6.1-sol", "variant": "medium" },
+    "claudia-browser": { "model": "openai/gpt-6.1-sol", "variant": "medium" },
+    "claudia-reviewer": { "model": "openai/gpt-6-luna", "variant": "low" }
+  }
+}

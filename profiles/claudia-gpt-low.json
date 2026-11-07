@@ -1,0 +1,16 @@
+{
+  "name": "GPT-low",
+  "description": "Perfil OpenAI de bajo coste: GPT-6 Luna con esfuerzo low en Claudia y todos los subagentes.",
+  "primary": {
+    "model": "openai/gpt-6-luna",
+    "variant": "low"
+  },
+  "agents": {
+    "claudia-simple": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-explorer": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-code": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-system": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-browser": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-reviewer": { "model": "openai/gpt-6-luna", "variant": "low" }
+  }
+}

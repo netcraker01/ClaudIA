@@ -1,0 +1,16 @@
+{
+  "name": "mix-med",
+  "description": "Perfil mixto equilibrado: GPT-6.1 Sol medium para Claudia; Sonnet 5.5 para implementación y operaciones; Haiku o Luna low para tareas ligeras.",
+  "primary": {
+    "model": "openai/gpt-6.1-sol",
+    "variant": "medium"
+  },
+  "agents": {
+    "claudia-simple": { "model": "anthropic/claude-haiku-5-5" },
+    "claudia-explorer": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-code": { "model": "anthropic/claude-sonnet-5-5" },
+    "claudia-system": { "model": "anthropic/claude-sonnet-5-5" },
+    "claudia-browser": { "model": "anthropic/claude-haiku-5-5" },
+    "claudia-reviewer": { "model": "openai/gpt-6-luna", "variant": "low" }
+  }
+}

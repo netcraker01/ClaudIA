@@ -1,0 +1,15 @@
+{
+  "name": "Local-Llama",
+  "description": "Perfil local sin llamadas a proveedores remotos: modelos llama.cpp asignados por capacidad y tipo de tarea.",
+  "primary": {
+    "model": "openai-compatible/qwen3.8-27b-ud-q4-k-m"
+  },
+  "agents": {
+    "claudia-simple": { "model": "openai-compatible/qwen3.5-9b-q5-k-m" },
+    "claudia-explorer": { "model": "openai-compatible/qwen3.5-9b-q5-k-m" },
+    "claudia-code": { "model": "openai-compatible/qwen3.8-27b-ud-q4-k-m" },
+    "claudia-system": { "model": "openai-compatible/qwen3.8-27b-ud-q4-k-m" },
+    "claudia-browser": { "model": "openai-compatible/gemma-4-26b-a4b-it-qat-ud-q4-k-xl" },
+    "claudia-reviewer": { "model": "openai-compatible/qwen3-30b-a3b-instruct-2507-ud-q4-k-xl" }
+  }
+}

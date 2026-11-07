@@ -1,0 +1,19 @@
+# Herramientas locales autogeneradas (índice de skills de la máquina)
+.atl/
+
+# Copias de seguridad locales
+*.bak
+*.before-*.bak
+
+# Dependencias
+node_modules/
+
+# Credenciales y claves locales (nunca versionar)
+.local-key
+*.key
+*.pem
+.env
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

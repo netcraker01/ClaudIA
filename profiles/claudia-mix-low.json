@@ -1,0 +1,16 @@
+{
+  "name": "mix-low",
+  "description": "Perfil mixto de bajo coste: GPT-6 Luna low para orquestación y tareas breves; Haiku 5.5 para ejecución especializada.",
+  "primary": {
+    "model": "openai/gpt-6-luna",
+    "variant": "low"
+  },
+  "agents": {
+    "claudia-simple": { "model": "anthropic/claude-haiku-5-5" },
+    "claudia-explorer": { "model": "openai/gpt-6-luna", "variant": "low" },
+    "claudia-code": { "model": "anthropic/claude-haiku-5-5" },
+    "claudia-system": { "model": "anthropic/claude-haiku-5-5" },
+    "claudia-browser": { "model": "anthropic/claude-haiku-5-5" },
+    "claudia-reviewer": { "model": "openai/gpt-6-luna", "variant": "low" }
+  }
+}

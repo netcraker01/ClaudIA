@@ -1,0 +1,27 @@
+{
+  "name": "Claude-med",
+  "description": "Perfil Anthropic equilibrado: Sonnet 5.5 para orquestación y tareas exigentes; Haiku 5.5 para tareas acotadas y revisión.",
+  "primary": {
+    "model": "anthropic/claude-sonnet-5-5"
+  },
+  "agents": {
+    "claudia-simple": {
+      "model": "anthropic/claude-haiku-5-5"
+    },
+    "claudia-explorer": {
+      "model": "anthropic/claude-haiku-5-5"
+    },
+    "claudia-code": {
+      "model": "anthropic/claude-sonnet-5-5"
+    },
+    "claudia-system": {
+      "model": "anthropic/claude-sonnet-5-5"
+    },
+    "claudia-browser": {
+      "model": "anthropic/claude-sonnet-5-5"
+    },
+    "claudia-reviewer": {
+      "model": "anthropic/claude-haiku-5-5"
+    }
+  }
+}
