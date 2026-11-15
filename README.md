@@ -8,6 +8,48 @@ Claudia recibe la petición, divide el trabajo y delega la ejecución a subagent
 
 Claudia usa la configuración V2 de agentes de OpenCode (`agents` y `permissions`). Los seis subagentes reciben `* allow` para herramientas, ejecución, MCP, rutas externas, edición y acciones de sistema. Sus descripciones y prompts limitan su función, pero OpenCode no les bloquea capacidades.
 
+## Instalación completa en un equipo nuevo
+
+Un solo comando restaura Claudia, Claudia Light, Key Manager y las herramientas que necesitan:
+
+```bash
+git clone https://github.com/netcraker01/ClaudIA.git
+cd ClaudIA
+node install-claudia-all.mjs
+```
+
+El repositorio es privado: el `git clone` pedirá credenciales de GitHub.
+
+El instalador hace, en este orden:
+
+1. Comprueba `python3`, `gpg` y `tar`. Si falta alguno, se detiene e indica el paquete a instalar.
+2. Pregunta si hay un servidor local de IA (llama.cpp u OpenAI-compatible) y su URL base. Pulsa Enter para omitirlo.
+3. Instala Engram 3.7.2 en `~/.local/bin` desde la release oficial de GitHub, verificando el SHA256 del archivo publicado. Si ya existe, no lo cambia.
+4. Instala terminal-browser con su instalador oficial (`https://terminal-browser.sh/install`). Si ya existe, no lo cambia.
+5. Instala la skill Key Manager en `~/.config/opencode/skills/` y, si ya había una, guarda una copia en `~/.config/opencode/backups/`. Inicializa el store de credenciales.
+6. Crea `opencode.json` si no existe y aplica el orquestador Claudia y `claudia-light`.
+7. Si indicaste una URL local, registra el proveedor `llama-cpp` con los modelos que devuelve `GET {URL}/models`. No reasigna ningún agente: los modelos quedan disponibles para elegirlos en `/claudia` o en un perfil.
+8. Verifica agentes, Engram, Key Manager y configuración.
+
+Opciones:
+
+```bash
+node install-claudia-all.mjs --check                       # solo verifica, sin cambios
+node install-claudia-all.mjs --local-llm-url http://192.168.1.235:8084/v1
+node install-claudia-all.mjs --skip-terminal-browser
+node install-claudia-all.mjs --restore-credentials FILE    # restaura un bundle cifrado de Key Manager
+```
+
+Las credenciales no viajan en el repositorio. Para pasarlas a otro equipo, en el origen:
+
+```bash
+python3 ~/.config/opencode/skills/key-manager/key-manager.py backup --out FILE --passphrase-stdin
+```
+
+Y en el equipo nuevo, con `--restore-credentials FILE`, el instalador pide la passphrase en el terminal. Un store existente no se sobrescribe automáticamente.
+
+Tras instalar: configura los proveedores de los modelos de los perfiles (el instalador no crea credenciales de proveedores), reinicia OpenCode por completo y abre una sesión nueva de Claudia.
+
 ## Instalación en otro equipo
 
 Requisitos:

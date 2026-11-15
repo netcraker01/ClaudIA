@@ -18,6 +18,19 @@ Initialize once (no passphrase prompt):
 python3 "$HOME/.config/opencode/skills/key-manager/key-manager.py" init
 ```
 
+Running the utility with NO subcommand in a real terminal opens a friendly interactive menu (add/list/view/modify/delete). It exists for humans only: agents must ALWAYS pass a subcommand explicitly; never delegate a task to the wizard and never ask the user to operate it on the agent's behalf during a delegated step.
+
+Quick reference (the exact safe agent flow; set `KM="$HOME/.config/opencode/skills/key-manager/key-manager.py"` first):
+
+```sh
+printf '%s\n' "$SECRET" | python3 "$KM" add NAME --service HOST --kind TYPE --secret-stdin  # store, secret via stdin only
+python3 "$KM" resolve --service HOST [--kind TYPE]   # metadata-only: prints the ONE entry NAME for that service; never guess names
+consumer < <(python3 "$KM" get NAME)                 # consume the secret by direct pipe; never print, capture, or log it
+python3 "$KM" list [--service HOST] [--kind TYPE]    # metadata-only inspection
+```
+
+`resolve` is the required lookup step when several credentials exist: it matches by exact service (and optionally kind) and prints the single entry name; if ambiguous or missing, its error lists the available entries so you can retry precisely. Never guess or abbreviate an entry name.
+
 Then add credentials through a trusted stdin pipe; never put secrets in arguments, logs, metadata, or memory:
 
 ```sh
@@ -35,6 +48,8 @@ sshpass -f <(python3 "$HOME/.config/opencode/skills/key-manager/key-manager.py" 
 Do not enable shell tracing, redirect the `get` output, place the secret in an argument/environment variable/file, or log it. This pattern is for an authorized password credential and host only; it does not retrieve credentials or connect unless explicitly executed.
 
 The store is `~/.local/share/key-manager` (0700). Each encrypted blob and `.local-key` are 0600. The random `.local-key` is separate from encrypted credential files and is not itself encrypted; this deliberately allows the same-user agent process to decrypt without prompting. Same-user processes, root, backups, and a compromised host may therefore access the key or plaintext. This is encryption at rest, not process isolation or a hardware-backed vault.
+
+The store is never copied inside the package. To move it between machines use `backup --out PATH --passphrase-stdin` (GPG-encrypted archive, mode 0600) and on the target `restore --from PATH --passphrase-stdin` (add `--replace` only to overwrite an existing store). Passphrases follow secret rules: stdin or hidden terminal entry only.
 
 ## Existing credentials / one-time migration
 
