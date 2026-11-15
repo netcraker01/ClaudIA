@@ -310,7 +310,7 @@ function nextSteps() {
   console.log(`
 Siguientes pasos:
 1. Configura en opencode.json los proveedores de los modelos de los perfiles
-   (openai, llama-cpp-proxy, etc.). Este instalador no crea proveedores ni credenciales de modelos.
+   (openai, llama-cpp, etc.). Este instalador no crea proveedores ni credenciales de modelos.
 2. Reinicia OpenCode por completo y abre una sesión nueva de Claudia (/claudia).
 3. Credenciales: en el equipo origen ejecuta
    python3 ~/.config/opencode/skills/key-manager/key-manager.py backup --out FILE --passphrase-stdin

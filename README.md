@@ -104,7 +104,7 @@ Después de instalar, reinicia OpenCode y ejecuta en el TUI:
 /claudia
 ```
 
-Para operaciones SSH y Docker con varios pasos, asigna `llama-cpp-proxy/qwen3.8-27b-ud-q4-k-m` o un modelo superior a `claudia-system` desde `/claudia`. El perfil `Medium` incluido ya usa Qwen 3.8 para ese agente. Qwen 3.5 9B puede servir para tareas simples, pero necesita un flujo muy cerrado en transferencias remotas.
+Para operaciones SSH y Docker con varios pasos, asigna `llama-cpp/qwen3.8-27b-ud-q4-k-m` o un modelo superior a `claudia-system` desde `/claudia`. El perfil `Medium` incluido ya usa Qwen 3.8 para ese agente. Qwen 3.5 9B puede servir para tareas simples, pero necesita un flujo muy cerrado en transferencias remotas.
 
 Se incluyen los perfiles `Claude-low` (Haiku 5.5 para todos) y `Claude-med` (Sonnet 5.5 para Claudia, code, system y browser; Haiku 5.5 para simple, explorer y reviewer). La investigación de precios y la justificación están en [MODEL-PROFILES-ANTHROPIC.md](MODEL-PROFILES-ANTHROPIC.md). El instalador copia los perfiles incluidos que aún no existan.
 
@@ -139,12 +139,12 @@ Y en el TUI, con `/models` o el selector de agente, elige la sesión `claudia-li
 | Agente | Utilidad | Modelo inicial |
 |---|---|---|
 | `claudia` | Orquesta y delega ejecución; usa herramientas propias para memoria, coordinación, recuperación y cambios mecánicos pequeños. | `openai/gpt-6-luna` |
-| `claudia-simple` | Correcciones mecánicas pequeñas en un único archivo. | `llama-cpp-proxy/qwen3.5-9b-q5-k-m` |
-| `claudia-explorer` | Exploración acotada, localización de archivos y entrega de contexto resumido. No edita. | `llama-cpp-proxy/qwen3.5-9b-q5-k-m` |
-| `claudia-code` | Python, n8n, Docker, Compose y scripts. | `llama-cpp-proxy/qwen3.8-27b-ud-q4-k-m` |
-| `claudia-system` | Linux, paquetes, servicios, logs, configuración y operaciones del sistema. | `llama-cpp-proxy/qwen3.8-27b-ud-q4-k-m` |
-| `claudia-browser` | Navegación web completa mediante terminal-browser: búsquedas, formularios, descargas y cargas. | `llama-cpp-proxy/gemma-4-26b-a4b-it-qat-ud-q4-k-xl` |
-| `claudia-reviewer` | Verificación compacta de cambios y resultados. No edita. | `llama-cpp-proxy/gemma-4-12b-it-qat-ud-q4-k-xl` |
+| `claudia-simple` | Correcciones mecánicas pequeñas en un único archivo. | `llama-cpp/qwen3.5-9b-q5-k-m` |
+| `claudia-explorer` | Exploración acotada, localización de archivos y entrega de contexto resumido. No edita. | `llama-cpp/qwen3.5-9b-q5-k-m` |
+| `claudia-code` | Python, n8n, Docker, Compose y scripts. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
+| `claudia-system` | Linux, paquetes, servicios, logs, configuración y operaciones del sistema. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
+| `claudia-browser` | Navegación web completa mediante terminal-browser: búsquedas, formularios, descargas y cargas. | `llama-cpp/gemma-4-26b-a4b-it-qat-ud-q4-k-xl` |
+| `claudia-reviewer` | Verificación compacta de cambios y resultados. No edita. | `llama-cpp/gemma-4-12b-it-ud-q4-k-xl` |
 
 Los prompts compactos indican a los subagentes que no creen subdelegaciones. Sus herramientas se permiten con `* allow`; las rutas externas se someten a una pregunta de autorización para que un permiso de archivos no se convierta en un bloqueo opaco.
 
@@ -193,11 +193,11 @@ Cada perfil puede contener un modelo y una variante para Claudia y para cada sub
   },
   "agents": {
     "claudia-simple": {
-      "model": "llama-cpp-proxy/qwen3.5-9b-q5-k-m",
+      "model": "llama-cpp/qwen3.5-9b-q5-k-m",
       "variant": "low"
     },
     "claudia-code": {
-      "model": "llama-cpp-proxy/qwen3.8-27b-ud-q4-k-m",
+      "model": "llama-cpp/qwen3.8-27b-ud-q4-k-m",
       "variant": "medium"
     }
   }
