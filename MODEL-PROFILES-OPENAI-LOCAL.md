@@ -1,6 +1,6 @@
 # Perfiles OpenAI, mixtos y locales de Claudia
 
-Investigación y configuración del 10 de octubre de 2026. Los IDs locales se cotejaron con `provider.openai-compatible.models` en la configuración activa de OpenCode. Los perfiles quedan en `profiles/`; el instalador los copia a `~/.config/opencode/profiles/` cuando no existe ya el archivo de destino.
+Investigación y configuración del 10 de octubre de 2026. Los IDs locales se cotejaron con `/v1/models` del servidor llama.cpp y con el proveedor `llama-cpp` (`http://192.168.1.235:8084/v1`) que registra `install-claudia-all.mjs`. Antes de esta actualización, la documentación usaba `openai-compatible`, que ya no se configura. Los perfiles quedan en `profiles/`; el instalador los copia a `~/.config/opencode/profiles/` cuando no existe ya el archivo de destino.
 
 ## Perfiles y asignación
 
@@ -12,7 +12,7 @@ Investigación y configuración del 10 de octubre de 2026. Los IDs locales se co
 | mix-med | GPT-6.1 Sol medium | Luna low o Haiku 5.5 | Sonnet 5.5 para código/sistema; Haiku 5.5 para browser |
 | Local-Llama | Qwen 3.8 27B | Qwen 3.5 9B | Qwen 3.8 27B para code/system; Gemma 4 26B para browser; Qwen 3 30B A3B para reviewer |
 
-`Local-Llama` solo referencia modelos bajo el proveedor local `openai-compatible` que ya aparecen configurados. La asignación usa Qwen 3.5 9B para exploración y cambios simples, el Qwen 3.8 27B para coordinación y operaciones con más pasos, Gemma 4 26B para el agente browser y Qwen 3 30B A3B para revisión. La agilidad y el uso de herramientas dependen también de cómo esté servido cada modelo en llama.cpp y de las capacidades anunciadas en el catálogo local.
+`Local-Llama` solo referencia modelos bajo el proveedor local `llama-cpp`, que el instalador registra con los modelos que devuelve el servidor. La asignación usa Qwen 3.5 9B para exploración y cambios simples, el Qwen 3.8 27B para coordinación y operaciones con más pasos, Gemma 4 26B para el agente browser y Qwen 3 30B A3B para revisión. La agilidad y el uso de herramientas dependen también de cómo esté servido cada modelo en llama.cpp y de las capacidades anunciadas en el catálogo local.
 
 ## Precios de API publicados
 
