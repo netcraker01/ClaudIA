@@ -171,6 +171,9 @@ export default Plugin.define({
     const [profileLabel, setProfileLabel] = createSignal(`ClaudIA · Perfil: ${activeProfile()}`)
     const [sidebar, setSidebar] = createSignal(sidebarSnapshot())
     const [activityFrame, setActivityFrame] = createSignal(0)
+    const [todosFrame, setTodosFrame] = createSignal(0)
+    const todosCache = new Map<string, { frame: number; todos: any[] }>()
+    const toolTodos = (part: any) => part?.type === "tool" && part?.name === "todowrite" && part?.state?.status === "completed" && Array.isArray(part?.state?.input?.todos) ? part.state.input.todos : undefined
     const refreshUI = () => {
       try {
         const snapshot = sidebarSnapshot()
@@ -196,9 +199,36 @@ export default Plugin.define({
         return []
       }
     }
+    const sessionTodos = (sessionID?: string) => {
+      const frame = todosFrame()
+      if (!sessionID) return []
+      const cached = todosCache.get(sessionID)
+      if (cached?.frame === frame) return cached.todos
+      try {
+        const messages = ctx.data.session.message.list(sessionID) || []
+        const revertMessageID = ctx.data.session.get(sessionID)?.revert?.messageID
+        const revertIndex = revertMessageID ? messages.findIndex((message: any) => message.id === revertMessageID) : -1
+        const relevantMessages = messages.slice(0, revertIndex === -1 ? messages.length : revertIndex)
+        const calls = relevantMessages.flatMap((message: any) => message.content || []).map((part: any) => ({ part, todos: toolTodos(part) })).filter((call: any) => Array.isArray(call.todos))
+        const last = calls.at(-1)
+        const todos = last?.todos || []
+        todosCache.set(sessionID, { frame, todos })
+        return todos
+      } catch {
+        return []
+      }
+    }
+    const taskProgress = (todos: any[]) => {
+      const active = todos.filter((todo) => todo?.status !== "cancelled")
+      if (!active.length) return { completed: 0, total: 0, percent: 0 }
+      const completed = active.filter((todo) => todo?.status === "completed").length
+      const percent = Math.round((completed / active.length) * 100)
+      return { completed, total: active.length, percent }
+    }
     const renderSidebar = (sessionID?: string) => {
       const current = sidebar()
       const running = activeChildren(sessionID)
+      const progress = taskProgress(sessionTodos(sessionID))
       const scannerPosition = activityFrame() % 12
       const scannerCenter = scannerPosition <= 6 ? scannerPosition : 12 - scannerPosition
       const scanner = () => Array.from({ length: 7 }, (_, index) => {
@@ -209,9 +239,13 @@ export default Plugin.define({
       const counts = new Map<string, number>()
       for (const task of running) if (task.agent) counts.set(task.agent, (counts.get(task.agent) || 0) + 1)
       return <box flexDirection="column" paddingTop={1}>
-        <text><span style={{ fg: "#FFD400" }}>✦ </span><span style={{ fg: "#F2F4F8" }}>CLAUDIA</span><span style={{ fg: "#7F8A9A" }}>  /  MODELOS</span></text>
+        <text><span style={{ fg: "#FFD400" }}>✦ </span><span style={{ fg: "#F2F4F8" }}>[[CLAUDIA AI-STACK]]</span></text>
         <text fg="#8995A6">PERFIL ACTIVO</text>
         <text><span style={{ fg: "green" }}>● </span><span style={{ fg: "brightYellow" }}>{current.profile}</span></text>
+        {progress.total > 0 && <>
+          <text><span style={{ fg: "brightGreen" }}>TAREA </span>{Array.from({ length: 12 }, (_, index) => <span style={{ fg: index < Math.round(progress.percent / 100 * 12) ? "brightGreen" : "green" }}>{index < Math.round(progress.percent / 100 * 12) ? "█" : "░"}</span>)}<span style={{ fg: "brightGreen" }}> {progress.percent}%</span></text>
+          <text fg="#8995A6">{progress.completed} completadas · {Math.max(0, progress.total - progress.completed)} pendientes</text>
+        </>}
         <text fg="#4B5665">────────────────────</text>
         <text><span style={{ fg: "magenta" }}>AGENTES</span><span style={{ fg: "#7F8A9A" }}>  {current.agents.length}</span>{running.length > 0 && <span style={{ fg: "brightBlue" }}>  ·  {running.length} EN MARCHA</span>}</text>
         {current.agents.map((agent) => {
@@ -225,15 +259,16 @@ export default Plugin.define({
     }
     const stopEvents = ctx.data.listen(({ details }: any) => {
       const type = details?.type || ""
-      if (!type.startsWith("session.") && !type.startsWith("tool.execute.")) return
+      if (!type.startsWith("session.") && !type.startsWith("message.") && !type.startsWith("tool.execute.")) return
       const eventData = details?.data || details?.properties || {}
       const info = eventData.info || eventData
-      for (const id of [eventData.sessionID, info.id, info.parentID]) {
+      for (const id of [eventData.sessionID, eventData.session_id, info.sessionID, info.session_id, info.id, info.parentID]) {
         if (typeof id === "string") {
           try { ctx.data.session.invalidate(id) } catch {}
         }
       }
       setActivityFrame(activityFrame() + 1)
+      setTodosFrame(todosFrame() + 1)
     })
     const activityTimer = setInterval(() => setActivityFrame(activityFrame() + 1), 130)
     refreshIndicator = refreshUI

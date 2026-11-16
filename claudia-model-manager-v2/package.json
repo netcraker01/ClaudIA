@@ -1,0 +1,7 @@
+{
+  "name": "@claudia/model-manager",
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.tsx"
+  }
+}

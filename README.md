@@ -86,11 +86,11 @@ El instalador modifica la configuración global de OpenCode en:
 
 ```text
 ~/.config/opencode/opencode.json
-~/.config/opencode/tui.jsonc
-~/.config/opencode/tui-plugins/claudia-model-manager.tsx
+~/.config/opencode/claudia-model-manager/tui.tsx
+~/.config/opencode/claudia-model-manager/package.json
 ```
 
-También registra el gestor en `~/.config/opencode/cli.json` y crea `~/.config/opencode/claudia-model-manager/tui.tsx` para OpenCode TUI v2. El entrypoint V2 usa `Plugin.define` y la API nativa de diálogos y comandos; no reexporta la implementación V1. Ambos cargadores exponen un único comando: `/claudia`.
+El instalador copia `claudia-model-manager-v2/tui.tsx` y su `package.json` al directorio local `~/.config/opencode/claudia-model-manager`; el manifiesto exporta `./tui` desde `./tui.tsx`. En OpenCode 2.2.6, `tui.jsonc` carga los plugins de esta ventana TUI y `cli.json` carga los plugins CLI: por eso `./claudia-model-manager` se registra en ambos archivos para activar la interfaz V2. En `tui.jsonc`, el instalador conserva plugins ajenos, quita las dos rutas antiguas de Claudia (`./tui-plugins/claudia-model-manager.tsx` y `./claudia-model-manager/tui.tsx`) y deja exactamente una entrada `./claudia-model-manager`. El entrypoint V2 usa `Plugin.define` y la API nativa de diálogos y comandos. Ambos cargadores exponen un único comando: `/claudia`.
 
 También instala `terminal-browser` y prepara Key Manager en `~/.config/opencode/skills/`. Claudia y `claudia-browser` reutilizan siempre una ventana Terminal Browser ya abierta; no abren otra ventana ni panel. El límite es de cinco pestañas en total, operadas con IDs explícitos. Si no hay ventana abierta, piden al usuario que la inicie. La guía está en [skills/terminal-browser/SKILL.md](skills/terminal-browser/SKILL.md); Key Manager y su utilidad portable están en [skills/key-manager](skills/key-manager). El instalador conserva una skill Key Manager ya existente y copia la del paquete si falta. Cada equipo debe inicializar su propio almacén; nunca se copia `~/.local/share/key-manager` ni `.local-key`.
 
@@ -155,6 +155,8 @@ Cuando el usuario elige autonomía hasta completar, Claudia continúa después d
 ## Progreso visible (todowrite)
 
 El instalador activa `experimental.todo: true`, la herramienta `todowrite` de OpenCode, que el TUI muestra como lista de tareas en tiempo real. El orquestador está obligado (regla `VISIBLE_PROGRESS_MANDATORY_V1`, inyectada por el instalador y por `repair-claudia-engram.mjs`) a crear la lista completa al recibir una tarea de varios pasos: un ítem por paso del plan, un ítem por delegación a cada subagente y un ítem de verificación final. Mantiene exactamente un ítem `in_progress`, marca `completed` solo con evidencia de verificación y actualiza la lista tras cada resultado de subagente. Los subagentes no llaman `todowrite` (tienen sesiones separadas): su handoff declara qué ítem queda hecho, bloqueado o pendiente, y Claudia actualiza la lista. En `claudia-light` se aplica el mismo protocolo con un párrafo compacto.
+
+El plugin TUI V2 también muestra el progreso total de esa lista sobre **AGENTES**, bajo la cabecera `[[CLAUDIA AI-STACK]]`: una barra de 12 segmentos con los completados en verde brillante y los pendientes en verde oscuro, seguida del porcentaje en una línea separada. Un resumen aparte indica las tareas completadas y pendientes. Las tareas canceladas no cuentan en el denominador; la barra se oculta si no hay tareas activas. La animación del escáner se conserva para los agentes activos.
 
 ## Gestor de modelos y perfiles
 
