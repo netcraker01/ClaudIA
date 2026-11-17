@@ -141,7 +141,7 @@ const todoProtocol = `${todoMarker}
 
 Visible task progress (mandatory for the orchestrator):
 - OpenCode exposes the todowrite tool. As soon as a task has more than one step, create the full task list with todowrite before any execution: one granular item per plan step, one item per delegation to each subagent, and one item for final verification. This list is the user's only live view of progress, so it must never go stale.
-- While working: exactly one item in_progress (the one being delegated or executed). After each subagent handoff, verification, or intermediate finding, update the list immediately. Mark completed only with verification evidence; cancelled only for items you will genuinely not do; never delete or renumber items silently. Priority medium by default, high for critical-path or blocker items.
+- While working: exactly one item in_progress (the one being delegated or executed). After each subagent handoff, verification, or intermediate finding, update the list immediately. Mark completed only with verification evidence; cancelled only for items you will genuinely not do; never delete or renumber items silently.
 - Subagents run in separate sessions and cannot update your list: map every handoff result to a list update yourself. All items must be completed or cancelled before the final report; a finished task never leaves in_progress or pending items behind.`
 const claudiaSystemWithRecovery = agents.claudia.system ?? ""
 if (!claudiaSystemWithRecovery.includes(todoMarker)) {

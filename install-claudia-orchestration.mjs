@@ -9,13 +9,12 @@ const packageDir = path.dirname(fileURLToPath(import.meta.url))
 const configDir = path.join(os.homedir(), ".config", "opencode")
 const configPath = path.join(configDir, "opencode.json")
 const tuiPath = path.join(configDir, "tui.jsonc")
-const tuiPluginDir = path.join(configDir, "tui-plugins")
-const tuiPluginSource = path.join(packageDir, "claudia-model-manager.tsx")
-const tuiPluginTarget = path.join(tuiPluginDir, "claudia-model-manager.tsx")
 const cliPath = path.join(configDir, "cli.json")
 const tuiV2Dir = path.join(configDir, "claudia-model-manager")
 const tuiV2Source = path.join(packageDir, "claudia-model-manager-v2", "tui.tsx")
 const tuiV2Target = path.join(tuiV2Dir, "tui.tsx")
+const tuiV2PackageSource = path.join(packageDir, "claudia-model-manager-v2", "package.json")
+const tuiV2PackageTarget = path.join(tuiV2Dir, "package.json")
 const terminalBrowserSkillSource = path.join(packageDir, "skills", "terminal-browser", "SKILL.md")
 const terminalBrowserSkillTarget = path.join(configDir, "skills", "terminal-browser", "SKILL.md")
 const keyManagerSkillSource = path.join(packageDir, "skills", "key-manager")
@@ -27,7 +26,7 @@ if (!fs.existsSync(configPath)) {
   throw new Error(`OpenCode config not found: ${configPath}`)
 }
 
-for (const source of [tuiPluginSource, tuiV2Source, terminalBrowserSkillSource,
+for (const source of [tuiV2Source, tuiV2PackageSource, terminalBrowserSkillSource,
   ...["SKILL.md", "README.md", "key-manager.py"].map((file) => path.join(keyManagerSkillSource, file))]) {
   if (!fs.existsSync(source)) throw new Error(`Claudia package source not found: ${source}`)
 }
@@ -45,7 +44,6 @@ config.plugins = config.plugins.filter((entry) => {
   return !id.startsWith("@ex-machina/opencode-anthropic-auth")
 })
 config.plugins.push(anthropicAuthPlugin)
-
 // Engram is a hard runtime dependency for Claudia. Ensure the MCP server is
 // connected instead of installing agents that cannot perform their required
 // pre-task memory lookup.
@@ -99,7 +97,7 @@ config.experimental.todo = true
 
 const claudiaPrompt = `You are Claudia, the primary orchestrator for small n8n, Docker, Python, Linux, and browser tasks.
 
-Keep your own context small: understand the request, recover only relevant project memory, delegate bounded execution, inspect the returned evidence, continue dependent steps, then report the result. Delegate implementation and external operations by default. Use your tools directly only for orchestration, a small mechanical task, or a bounded recovery. Never invent completion.
+Keep your own context small: understand the request, recover only relevant project memory, delegate bounded execution, inspect the returned evidence, continue dependent steps, then report the result. Delegate implementation and external operations by default. Use your tools directly only for orchestration bookkeeping, reading evidence, or a single trivial mechanical change explicitly requested by the user. Never invent completion.
 
 MEMORY — mandatory at task start and finish
 ENGRAM_PROJECT_RESOLUTION_V1
@@ -112,13 +110,16 @@ ENGRAM_MEMORY_SAVE_V1
 - Before closing, save material decisions and outcome with engram_mem_save (What, Why, Where, Learned, status, verification, pending work); call engram_mem_session_summary when available. Never claim a call succeeded when it did not.
 
 QUESTIONS AND PLANS
-- After memory succeeds, use one interactive question call for autonomy (Confirm everything / Confirm important actions only / Autonomous until complete) and parallel work (Yes, independent tasks only / No, one at a time). Skip only a setting already answered in the current request or a clear active preference. If parallel choice is missing/canceled, work sequentially.
-- If the user selects or clearly requests autonomous completion, treat it as authorization to continue every safe, in-scope step until the requested outcome is complete. Do not end a turn with an EN CURSO status, a list of pending steps, or a "continue?" handoff while a concrete next action is available. Execute that action now. Progress updates are not a reason to pause. End early only for a real blocker, a required approval not yet given, or information only the user can provide; name the specific blocker and the minimum needed from the user.
-- After each subagent result, verification, or intermediate discovery, advance to the next independent/dependent plan step in the same task. Do not ask the user to say "continue" to resume work they already authorized.
-- Ask clarifications through the interactive question tool when available. Keep questions focused and offer useful choices.
-- Simple, local tasks need no plan approval. For a complex task, show the complete compact plan table first (steps, assigned agents, dependencies, verification, risks, completion condition), then separately ask Approve plan / Adjust plan / Cancel task. Wait for approval before implementation or external changes.
+- The native tool for every user decision is \`question\`: clarifications, the autonomy choice, the parallel-work choice, plan approval, and privilege requests all use it. Never present options as plain text lists or menus in the chat.
+- After the memory lookup, make ONE \`question\` call that asks two questions: autonomy (Confirm everything / Confirm important actions only / Autonomous until complete) and parallel work (Yes, independent tasks only / No, one at a time). Ask only if the current request does not already answer them. If the parallel choice is missing or canceled, work sequentially.
+- A complex task is any task with more than one step, more than one agent, file edits, installs, service or configuration changes, or external systems. Only a single-step read-only answer or a single trivial change is simple; only those need no plan approval.
+- For a complex task, first write the complete plan table as a normal message (steps, agent per step, dependencies, verification, risks, completion condition), then in a SEPARATE \`question\` call ask Approve plan / Adjust plan / Cancel task. This applies even when autonomy is "Autonomous until complete". Do not change files or call external systems before approval.
+- Sequential execution is the default: run steps one at a time unless the user answered "Yes" to parallel work and the tasks are independent with disjoint scopes (maximum three agents).
+- If the user selects or clearly requests autonomous completion, treat it as authorization to continue every safe, in-scope step until the requested outcome is complete. Do not end a turn with an EN CURSO status, a list of pending steps, or a "continue?" handoff while a concrete next action is available. Execute that action now. Progress updates are not a reason to pause. Stop only for a real blocker, a required approval not yet given, or information only the user can provide; name the specific blocker and the minimum needed from the user.
+- After each subagent result, verification, or intermediate discovery, advance to the next plan step in the same task. Do not ask the user to say "continue" to resume work they already authorized.
 
 DELEGATION
+- Claudia orchestrates and delegates execution: she does not edit files or run shell/system commands herself, except for orchestration bookkeeping, reading evidence, or a single trivial mechanical change explicitly requested by the user. Every other workstream goes to the best-fit subagent (simple, explorer, code, system, browser, reviewer).
 - Delegate each bounded workstream to its best-fit subagent; use multiple agents only for genuinely independent work. Announce each assignment briefly before launch. Include project, exact scope/paths, constraints, completion criteria, verification, autonomy, and parallel limit.
 - Use: simple for one-file mechanical edits; explorer for read-only discovery; code for Python/n8n/Docker/scripts; system for Linux/SSH/services; browser for all web interaction; reviewer for independent checks.
 - Subagents consult Engram themselves, do not create child agents, and return a compact handoff. After each result, state what it establishes and continue the plan if it passes. A failed reviewer is not a pass.
@@ -128,7 +129,7 @@ DELEGATION
 VISIBLE PROGRESS — MANDATORY
 VISIBLE_PROGRESS_MANDATORY_V1
 - OpenCode exposes the todowrite tool. As soon as a task has more than one step, create the full task list with todowrite before any execution: one granular item per plan step, one item per delegation to each subagent, and one item for final verification. This list is the user's only live view of progress, so it must never go stale.
-- While working: exactly one item in_progress (the one being delegated or executed). After each subagent handoff, verification, or intermediate finding, update the list immediately. Mark completed only with verification evidence; cancelled only for items you will genuinely not do; never delete or renumber items silently. Priority: medium by default, high for critical-path or blocker items.
+- While working: exactly one item in_progress (the one being delegated or executed). After each subagent handoff, verification, or intermediate finding, update the list immediately. Mark completed only with verification evidence; cancelled only for items you will genuinely not do; never delete or renumber items silently.
 - Subagents run in separate sessions and cannot update your list: map every handoff result to a list update yourself. All items must be completed or cancelled before the final report; a finished task never leaves in_progress or pending items behind.
 
 CREDENTIALS AND EXTERNAL ACTIONS
@@ -265,10 +266,9 @@ delete config.subagent_depth
 
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
 
-fs.mkdirSync(tuiPluginDir, { recursive: true })
-fs.copyFileSync(tuiPluginSource, tuiPluginTarget)
 fs.mkdirSync(tuiV2Dir, { recursive: true })
 fs.copyFileSync(tuiV2Source, tuiV2Target)
+fs.copyFileSync(tuiV2PackageSource, tuiV2PackageTarget)
 fs.mkdirSync(path.dirname(terminalBrowserSkillTarget), { recursive: true })
 fs.copyFileSync(terminalBrowserSkillSource, terminalBrowserSkillTarget)
 fs.mkdirSync(keyManagerSkillTarget, { recursive: true })
@@ -293,16 +293,21 @@ if (fs.existsSync(bundledProfilesDir)) {
   }
 }
 
-let tui = fs.existsSync(tuiPath) ? fs.readFileSync(tuiPath, "utf8") : "{}\n"
-let tuiConfig
-try { tuiConfig = JSON.parse(tui) } catch { tuiConfig = { plugin: ["./herdr-tui-session.js"] } }
-tuiConfig.plugin ??= tuiConfig.plugins ?? ["./herdr-tui-session.js"]
-tuiConfig.plugin = tuiConfig.plugin.filter((entry) => !isSelectorPlugin(entry))
-if (!tuiConfig.plugin.includes("./tui-plugins/claudia-model-manager.tsx")) {
-  tuiConfig.plugin.push("./tui-plugins/claudia-model-manager.tsx")
+if (fs.existsSync(tuiPath)) {
+  const tui = fs.readFileSync(tuiPath, "utf8")
+  let tuiConfig
+  try { tuiConfig = JSON.parse(tui) } catch { tuiConfig = null }
+  if (tuiConfig) {
+    const plugins = Array.isArray(tuiConfig.plugin) ? tuiConfig.plugin : []
+    tuiConfig.plugin = plugins.filter((entry) =>
+      entry !== "./tui-plugins/claudia-model-manager.tsx" &&
+      entry !== "./claudia-model-manager/tui.tsx" &&
+      entry !== "./claudia-model-manager"
+    )
+    tuiConfig.plugin.push("./claudia-model-manager")
+    fs.writeFileSync(tuiPath, `${JSON.stringify(tuiConfig, null, 2)}\n`)
+  }
 }
-delete tuiConfig.plugins
-fs.writeFileSync(tuiPath, `${JSON.stringify(tuiConfig, null, 2)}\n`)
 
 const cliConfig = fs.existsSync(cliPath) ? JSON.parse(fs.readFileSync(cliPath, "utf8")) : {}
 cliConfig.plugins ??= []
@@ -313,9 +318,8 @@ fs.writeFileSync(cliPath, `${JSON.stringify(cliConfig, null, 2)}\n`)
 console.log(JSON.stringify({
   status: "installed",
   config: configPath,
-  tui: tuiPath,
   cli: cliPath,
-  tuiPlugin: tuiPluginTarget,
+  tuiV2Plugin: tuiV2Target,
   terminalBrowserSkill: terminalBrowserSkillTarget,
   keyManagerSkill: path.join(keyManagerSkillTarget, "SKILL.md"),
   keyManagerUpdatedFiles,

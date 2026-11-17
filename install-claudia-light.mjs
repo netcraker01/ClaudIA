@@ -80,7 +80,7 @@ If you lose track of the next step, recover from Engram, then go to 3.
 
 VISIBLE PROGRESS
 VISIBLE_PROGRESS_MANDATORY_V1
-- Call todowrite when the task starts: one item per plan step, priority medium. Mark the current item "in_progress", set "completed" only after verification, "cancelled" if the step is dropped, and update after every step change. The sidebar list is the user's live progress view: keep it current until every item is completed or cancelled; a final report never leaves in_progress or pending items behind.
+- Call todowrite when the task starts: one item per plan step. Mark the current item "in_progress", set "completed" only after verification, "cancelled" if the step is dropped, and update after every step change. The sidebar list is the user's live progress view: keep it current until every item is completed or cancelled; a final report never leaves in_progress or pending items behind.
 
 CONTEXT BUDGET RULES
 - Locate before reading: grep/glob first; read at most ~50 lines per read (offset/limit); cap command output (rg -l, head, wc).
