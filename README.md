@@ -138,15 +138,17 @@ Y en el TUI, con `/models` o el selector de agente, elige la sesión `claudia-li
 
 | Agente | Utilidad | Modelo inicial |
 |---|---|---|
-| `claudia` | Orquesta y delega ejecución; usa herramientas propias para memoria, coordinación, recuperación y cambios mecánicos pequeños. | `openai/gpt-6-luna` |
+| `claudia` | Orquestador general: planifica y enruta por entregable; delega trabajo y usa herramientas propias para memoria y coordinación. | `openai/gpt-6-luna` |
 | `claudia-simple` | Correcciones mecánicas pequeñas en un único archivo. | `llama-cpp/qwen3.5-9b-q5-k-m` |
 | `claudia-explorer` | Exploración acotada, localización de archivos y entrega de contexto resumido. No edita. | `llama-cpp/qwen3.5-9b-q5-k-m` |
-| `claudia-code` | Python, n8n, Docker, Compose y scripts. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
-| `claudia-system` | Linux, paquetes, servicios, logs, configuración y operaciones del sistema. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
+| `claudia-code` | Implementación de software en cualquier lenguaje, framework o stack, incluida configuración de aplicaciones versionada. Para APIs/librerías desconocidas o específicas de versión puede consultar Context7 para documentación y ejemplos; no sustituye ejecución/tests ni limita lenguajes. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
+| `claudia-system` | Diagnóstico y operación de hosts, redes, Linux/SSH, servicios y contenedores existentes/en ejecución. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
 | `claudia-browser` | Navegación web completa mediante terminal-browser: búsquedas, formularios, descargas y cargas. | `llama-cpp/gemma-4-26b-a4b-it-qat-ud-q4-k-xl` |
 | `claudia-reviewer` | Verificación compacta de cambios y resultados. No edita. | `llama-cpp/gemma-4-12b-it-ud-q4-k-xl` |
 
 Los prompts compactos indican a los subagentes que no creen subdelegaciones. Sus herramientas se permiten con `* allow`; las rutas externas se someten a una pregunta de autorización para que un permiso de archivos no se convierta en un bloqueo opaco.
+
+El enrutamiento depende del entregable: cambio mecánico trivial → Simple; lectura/investigación → Explorer; software o configuración versionada → Code; operación de un entorno ya desplegado → System; interacción web → Browser; verificación independiente → Reviewer. Por ejemplo, editar un Compose versionado para la aplicación es Code; inspeccionar o reiniciar el servicio que ya corre es System. Si el trabajo no encaja claramente, se elige por el entregable principal y solo se pide aclaración si no puede inferirse. Se divide el trabajo multidominio únicamente cuando los entregables son independientes; si están acoplados, hay un único agente responsable.
 
 Al inicio Claudia pregunta el nivel de autonomía y, en la misma interacción, si puede ejecutar en paralelo tareas independientes. Solo paraleliza con autorización, con ámbitos de escritura separados y hasta tres agentes simultáneos. Dependencias, recursos compartidos y llamadas al mismo runtime local se procesan secuencialmente.
 
