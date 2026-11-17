@@ -28,6 +28,7 @@ jobs:
           test -f dist/claudia/install-claudia-all.mjs
           test -f dist/claudia/skills/key-manager/key-manager.py
           test -f dist/claudia/claudia-model-manager-v2/tui.tsx
+          test -f dist/claudia/claudia-model-manager-v2/installed-version.mjs
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path

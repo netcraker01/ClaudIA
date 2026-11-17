@@ -19,6 +19,8 @@ const cliPath = path.join(configDir, "cli.json")
 const tuiV2Dir = path.join(configDir, "claudia-model-manager")
 const tuiV2Source = path.join(packageDir, "claudia-model-manager-v2", "tui.tsx")
 const tuiV2Target = path.join(tuiV2Dir, "tui.tsx")
+const tuiV2VersionSource = path.join(packageDir, "claudia-model-manager-v2", "installed-version.mjs")
+const tuiV2VersionTarget = path.join(tuiV2Dir, "installed-version.mjs")
 const tuiV2PackageSource = path.join(packageDir, "claudia-model-manager-v2", "package.json")
 const tuiV2PackageTarget = path.join(tuiV2Dir, "package.json")
 const terminalBrowserSkillSource = path.join(packageDir, "skills", "terminal-browser", "SKILL.md")
@@ -32,7 +34,7 @@ if (!fs.existsSync(configPath)) {
   throw new Error(`OpenCode config not found: ${configPath}`)
 }
 
-for (const source of [tuiV2Source, tuiV2PackageSource, terminalBrowserSkillSource,
+for (const source of [tuiV2Source, tuiV2VersionSource, tuiV2PackageSource, terminalBrowserSkillSource,
   ...["SKILL.md", "README.md", "key-manager.py"].map((file) => path.join(keyManagerSkillSource, file))]) {
   if (!fs.existsSync(source)) throw new Error(`Claudia package source not found: ${source}`)
 }
@@ -280,6 +282,7 @@ atomicWrite(configPath, `${JSON.stringify(config, null, 2)}\n`)
 
 fs.mkdirSync(tuiV2Dir, { recursive: true })
 fs.copyFileSync(tuiV2Source, tuiV2Target)
+fs.copyFileSync(tuiV2VersionSource, tuiV2VersionTarget)
 fs.copyFileSync(tuiV2PackageSource, tuiV2PackageTarget)
 fs.mkdirSync(path.dirname(terminalBrowserSkillTarget), { recursive: true })
 fs.copyFileSync(terminalBrowserSkillSource, terminalBrowserSkillTarget)

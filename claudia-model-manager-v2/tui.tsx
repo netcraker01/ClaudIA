@@ -3,9 +3,11 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { createSignal } from "solid-js"
+import { readInstalledVersion } from "./installed-version.mjs"
 
 const configPath = path.join(os.homedir(), ".config", "opencode", "opencode.json")
 const profilesDir = path.join(os.homedir(), ".config", "opencode", "profiles")
+const claudiaVersion = readInstalledVersion()
 const prefix = "claudia-"
 const assignment = (value: any) => {
   const raw = typeof value === "string" ? value : value?.model || ""
@@ -239,7 +241,7 @@ export default Plugin.define({
       const counts = new Map<string, number>()
       for (const task of running) if (task.agent) counts.set(task.agent, (counts.get(task.agent) || 0) + 1)
       return <box flexDirection="column" paddingTop={1}>
-        <text><span style={{ fg: "#FFD400" }}>✦ </span><span style={{ fg: "#F2F4F8" }}>[[CLAUDIA AI-STACK]]</span></text>
+        <text><span style={{ fg: "#FFD400" }}>✦ </span><span style={{ fg: "#F2F4F8" }}>[[CLAUDIA AI-STACK]]</span>{claudiaVersion && <span style={{ fg: "#8995A6" }}> {claudiaVersion}</span>}</text>
         <text fg="#8995A6">PERFIL ACTIVO</text>
         <text><span style={{ fg: "green" }}>● </span><span style={{ fg: "brightYellow" }}>{current.profile}</span></text>
         {progress.total > 0 && <>
