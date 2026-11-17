@@ -10,6 +10,8 @@ Claudia usa la configuración V2 de agentes de OpenCode (`agents` y `permissions
 
 ## Instalación completa en un equipo nuevo
 
+Antes de empezar, instala y configura OpenCode en la cuenta de destino. Se requiere Node.js, Python 3, `gpg`/GnuPG y `tar`; el instalador comprueba estos últimos tres comandos y se detiene si falta alguno. No se declara un mínimo de Node.js probado para este repositorio: recomienda usar una versión LTS actualmente soportada y comprueba la instalación con `node --version`.
+
 Un solo comando restaura Claudia, Claudia Light, Key Manager y las herramientas que necesitan:
 
 ```bash
@@ -50,21 +52,19 @@ Y en el equipo nuevo, con `--restore-credentials FILE`, el instalador pide la pa
 
 Tras instalar: configura los proveedores de los modelos de los perfiles (el instalador no crea credenciales de proveedores), reinicia OpenCode por completo y abre una sesión nueva de Claudia.
 
-## Instalación en otro equipo
+## Instalación manual del orquestador
 
-Requisitos:
-
-- OpenCode instalado.
-- Engram CLI instalado y accesible en `~/.local/bin/engram` (la instalación expone cinco herramientas MCP explícitas para Claudia y sus subagentes; si falta, el instalador se detiene).
-- `gpg` instalado para que Key Manager pueda cifrar credenciales. La skill y su utilidad se incluyen en el paquete; el almacén de credenciales y su clave local no.
-- Un proveedor configurado para cada modelo que quieras utilizar.
-- `opencode` funcionando desde la cuenta del usuario que ejecutará la instalación.
-
-Copia esta carpeta al otro equipo y ejecuta:
+Para instalar solo Claudia en otro equipo, aplica los mismos requisitos de OpenCode y runtime indicados arriba. Clona el repositorio y ejecuta el instalador desde la raíz del clon:
 
 ```bash
-node ClaudIA/install-claudia-orchestration.mjs
+git clone https://github.com/netcraker01/ClaudIA.git
+cd ClaudIA
+node install-claudia-orchestration.mjs
 ```
+
+Si ya tienes el clon y estás en su directorio padre, la ruta equivalente es `node ClaudIA/install-claudia-orchestration.mjs`. El instalador completo es la opción recomendada para preparar un equipo nuevo; esta vía manual no instala las herramientas y skills adicionales que instala `install-claudia-all.mjs`.
+
+Cada equipo debe tener sus propios proveedores y modelos configurados en OpenCode. Los secretos, credenciales y almacenes locales no se copian desde el repositorio ni desde el equipo de origen.
 
 Si Claudia ya está instalada y los subagentes no ven Engram o la skill Key Manager, ejecuta la reparación acotada y reinicia OpenCode por completo:
 
