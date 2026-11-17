@@ -74,7 +74,7 @@ async function install(version) {
     const entries=fs.readdirSync(temp);if(entries.length!==1||entries[0]!==archive)throw Error(`Expected exactly ${archive}`)
     const file=path.join(temp,archive)
     if(!fs.lstatSync(file).isFile()||fs.lstatSync(file).isSymbolicLink())throw Error('Downloaded archive must be a regular, non-symlink file')
-    run('gh',['attestation','verify',file,'--repo',repo,'--signer-repo',repo,'--signer-workflow',`${repo}/${workflow}`])
+    run('gh',['attestation','verify',file,'--repo',repo,'--signer-workflow',`${repo}/${workflow}`])
     const inspector=`import json,sys,tarfile\nitems=[]\nwith tarfile.open(sys.argv[1], 'r:gz') as archive:\n for member in archive.getmembers():\n  kind='directory' if member.isdir() else 'regular' if member.isreg() else 'other'\n  items.append({'name':member.name,'kind':kind})\nprint(json.dumps(items))`
     const archiveEntries=JSON.parse(run('python3',['-c',inspector,file],{capture:true}).stdout)
     if(!Array.isArray(archiveEntries)||!archiveEntries.length||archiveEntries.some(e=>e.kind!=='directory'&&e.kind!=='regular'))throw Error('Archive contains unsupported entry types')
