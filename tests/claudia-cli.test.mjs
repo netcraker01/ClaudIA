@@ -45,6 +45,54 @@ test('uninstall refuses omitted or altered manifest entries without deleting pac
 test('uninstall quarantines only the exact active pointer and launcher identities',t=>{for(const hook of ['replace-active','replace-launcher']){const s=setup(t);assert.equal(run(s.home,['install','--version=v1.2.3'],s.env).status,0);const sentinel=path.join(s.home,'sentinel');fs.writeFileSync(sentinel,'preserve');const r=run(s.home,['uninstall'],{...s.env,CLAUDIA_CONFIRM:'y',CLAUDIA_TEST_UNINSTALL_HOOK:hook});assert.notEqual(r.status,0);assert.equal(fs.readFileSync(sentinel,'utf8'),'preserve');assert.ok(fs.existsSync(path.join(s.home,'.local/share/claudia/versions/v1.2.3/claudia')));if(hook==='replace-active')assert.ok(fs.lstatSync(path.join(s.home,'.local/share/claudia/active')).isSymbolicLink());else assert.ok(fs.lstatSync(path.join(s.home,'.local/bin/claudia')).isSymbolicLink())}});
 test('release workflow fails closed and pins actions at full immutable SHAs',()=>{const workflow=fs.readFileSync(path.join(root,'.github/workflows/release.yml'),'utf8');assert.match(workflow,/gh release create/);assert.doesNotMatch(workflow,/gh release view/);assert.match(workflow,/test "\$\(git rev-parse "refs\/tags\/\$GITHUB_REF_NAME\^\{commit\}"\)" = "\$GITHUB_SHA"/);assert.match(workflow,/permissions:\n  contents: read/);assert.match(workflow,/      contents: write\n      id-token: write\n      attestations: write/);const actions=workflow.split('\n').filter(l=>/^\s*-?\s*uses:/.test(l));assert.ok(actions.length>0);for(const line of actions){assert.match(line,/@[a-f0-9]{40}(?:\s+#.*)?$/);assert.doesNotMatch(line,/@v\d|@main(?:\s|$)/)}assert.ok(actions.some(line=>line.includes('actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a')))})
 
+function bootstrapFixture(t, releaseTag='v1.2.3', rejectAttestation=false) {
+  const base=fs.mkdtempSync(path.join(os.tmpdir(),'claudia bootstrap test '));t.after(()=>fs.rmSync(base,{recursive:true,force:true}))
+  const mock=path.join(base,'mock bin');fs.mkdirSync(mock)
+  const log=path.join(base,'commands.log')
+  const writeExecutable=(name,body)=>{const file=path.join(mock,name);fs.writeFileSync(file,`#!/bin/sh\n${body}\n`);fs.chmodSync(file,0o755)}
+  writeExecutable('gh',`printf 'gh:%s\\n' "$*" >> "$BOOTSTRAP_TEST_LOG"\ncase "$1" in\n  release) if [ "$2" = view ]; then printf '%s\\n' "$BOOTSTRAP_TEST_TAG"; else for arg do dir=$arg; done; touch "$dir/claudia-$BOOTSTRAP_TEST_TAG.tar.gz"; fi ;;\n  attestation) [ "${rejectAttestation ? '1' : '0'}" != 1 ] ;;\n  *) exit 90 ;;\nesac`)
+  writeExecutable('tar',`printf 'tar:%s\\n' "$*" >> "$BOOTSTRAP_TEST_LOG"\n[ "$1" = -xzf ] || exit 91\nprev=; dest=; for arg do if [ "$prev" = -C ]; then dest=$arg; fi; prev=$arg; done\nmkdir -p "$dest/claudia"\n: > "$dest/claudia/claudia"`)
+  writeExecutable('node',`printf 'node:%s\\n' "$*" >> "$BOOTSTRAP_TEST_LOG"\nprintf 'archive=%s\\ntag=%s\\n' "$CLAUDIA_VERIFIED_ARCHIVE" "$3" > "$BOOTSTRAP_TEST_RESULT"`)
+  const env={...process.env,HOME:path.join(base,'isolated home'),PATH:`${mock}:${process.env.PATH}`,BOOTSTRAP_TEST_LOG:log,BOOTSTRAP_TEST_TAG:releaseTag,BOOTSTRAP_TEST_RESULT:path.join(base,'result')}
+  return {base,log,env,result:env.BOOTSTRAP_TEST_RESULT}
+}
+
+test('bootstrap verifies exact release asset before install and handles spaces in paths',t=>{
+  const f=bootstrapFixture(t)
+  const r=spawnSync(path.join(root,'bootstrap.sh'),[],{encoding:'utf8',env:f.env})
+  assert.equal(r.status,0,r.stderr)
+  const log=fs.readFileSync(f.log,'utf8').trim().split('\n')
+  assert.match(log[0],/^gh:release view --repo netcraker01\/ClaudIA --json tagName --jq \.tagName$/)
+  assert.match(log[1],/^gh:release download v1\.2\.3 --repo netcraker01\/ClaudIA --pattern claudia-v1\.2\.3\.tar\.gz --dir \/.*claudia-bootstrap\./)
+  assert.match(log[2],/^gh:attestation verify .*claudia-v1\.2\.3\.tar\.gz --repo netcraker01\/ClaudIA --signer-workflow netcraker01\/ClaudIA\/\.github\/workflows\/release\.yml$/)
+  assert.match(log[3],/^tar:-xzf .*claudia-v1\.2\.3\.tar\.gz -C \/.*claudia-bootstrap\./)
+  assert.match(log[4],/^node:.*\/claudia\/claudia install --version=v1\.2\.3$/)
+  assert.match(fs.readFileSync(f.result,'utf8'),/^archive=\/tmp\/claudia-bootstrap\..*\/claudia-v1\.2\.3\.tar\.gz$/m)
+  assert.match(fs.readFileSync(f.result,'utf8'),/^tag=--version=v1\.2\.3$/m)
+  const tempDir=log[1].match(/--dir (.*)$/)[1]
+  assert.equal(fs.existsSync(tempDir),false,'temporary bootstrap directory should be cleaned')
+})
+
+test('bootstrap rejects invalid release tags before downloading',t=>{
+  const f=bootstrapFixture(t,'v01.2.3')
+  const r=spawnSync(path.join(root,'bootstrap.sh'),[],{encoding:'utf8',env:f.env})
+  assert.notEqual(r.status,0)
+  assert.match(r.stderr,/invalid release tag/)
+  assert.equal(fs.readFileSync(f.log,'utf8').trim().split('\n').length,1)
+})
+
+test('bootstrap stops before extraction or install when attestation fails',t=>{
+  const f=bootstrapFixture(t,'v1.2.3',true)
+  const r=spawnSync(path.join(root,'bootstrap.sh'),[],{encoding:'utf8',env:f.env})
+  assert.notEqual(r.status,0)
+  const log=fs.readFileSync(f.log,'utf8')
+  assert.match(log,/gh:attestation verify/)
+  assert.doesNotMatch(log,/tar:|node:/)
+  assert.equal(fs.existsSync(f.result),false)
+  const tempDir=log.match(/--dir (.*)$/m)[1]
+  assert.equal(fs.existsSync(tempDir),false,'temporary bootstrap directory should be cleaned after failure')
+})
+
 test('package manager hints cover Arch, Debian, and unknown distro', async () => {
   const source = await import('../lib/distro-hint.mjs')
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'distro-test-'))
