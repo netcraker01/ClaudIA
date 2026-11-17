@@ -10,6 +10,20 @@ Claudia usa la configuración V2 de agentes de OpenCode (`agents` y `permissions
 
 ## Instalación completa en un equipo nuevo
 
+### Instalación/actualización gestionada (Linux Ubuntu/Debian y Arch/Omarchy)
+
+Soporta Linux Ubuntu/Debian y Arch Linux/Omarchy. Requiere OpenCode ya instalado, Node.js, Python 3, `tar` y `gh` autenticado con acceso al repositorio privado. En Arch/Omarchy, instala manualmente los paquetes necesarios (por ejemplo `sudo pacman -S nodejs npm github-cli python gnupg tar`); en Debian/Ubuntu, `sudo apt install ...`. La primera instalación usa el último artefacto de release y verifica la attestation de GitHub Actions (repo y workflow esperados) antes de extraerlo. Instala dependencias del sistema por separado con autorización explícita: el CLI no ejecuta sudo ni modifica credenciales.
+
+La primera línea sencilla instala el bootstrap verificado y lo ejecuta:
+
+```bash
+tmp=$(mktemp -d) && tag=$(gh release view --repo netcraker01/ClaudIA --json tagName --jq .tagName) && gh release download "$tag" --repo netcraker01/ClaudIA --pattern "claudia-${tag}.tar.gz" --dir "$tmp" && gh attestation verify "$tmp/claudia-${tag}.tar.gz" --repo netcraker01/ClaudIA --signer-repo netcraker01/ClaudIA --signer-workflow netcraker01/ClaudIA/.github/workflows/release.yml && tar -xzf "$tmp/claudia-${tag}.tar.gz" -C "$tmp" && CLAUDIA_VERIFIED_ARCHIVE="$tmp/claudia-${tag}.tar.gz" node "$tmp/claudia/claudia" install --version="$tag"; rc=$?; rm -rf "$tmp"; exit "$rc"
+```
+
+Después, los comandos son `claudia update [--latest|--version=TAG]`, `claudia status` y `claudia uninstall`. La desinstalación solicita confirmación y solo elimina el paquete y lanzador que administra; conserva configuración compartida de OpenCode, perfiles y datos/credenciales de Engram y Key Manager.
+
+El actualizador requiere un archivo versionado de release; instala en `~/.local/share/claudia` y el lanzador en `~/.local/bin/claudia`.
+
 Antes de empezar, instala y configura OpenCode en la cuenta de destino. Se requiere Node.js, Python 3, `gpg`/GnuPG y `tar`; el instalador comprueba estos últimos tres comandos y se detiene si falta alguno. No se declara un mínimo de Node.js probado para este repositorio: recomienda usar una versión LTS actualmente soportada y comprueba la instalación con `node --version`.
 
 Un solo comando restaura Claudia, Claudia Light, Key Manager y las herramientas que necesitan:

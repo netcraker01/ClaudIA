@@ -9,6 +9,7 @@ import crypto from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { createInterface } from "node:readline/promises"
+import { packageManagerHint } from "./lib/distro-hint.mjs"
 
 const packageDir = path.dirname(fileURLToPath(import.meta.url))
 const home = os.homedir()
@@ -21,6 +22,12 @@ const storeKeyPath = path.join(home, ".local", "share", "key-manager", ".local-k
 const engramVersion = "3.7.2"
 const engramBase = `https://github.com/Gentleman-Programming/engram/releases/download/v${engramVersion}`
 const terminalBrowserInstallUrl = "https://terminal-browser.sh/install"
+function atomicConfigWrite(file, content) {
+  const temporary = `${file}.claudia-tmp-${process.pid}`
+  const mode = fs.existsSync(file) ? fs.statSync(file).mode & 0o777 : 0o600
+  fs.writeFileSync(temporary, content, { mode })
+  fs.renameSync(temporary, file)
+}
 
 const argv = process.argv.slice(2)
 const check = argv.includes("--check")
@@ -92,7 +99,9 @@ function preflight() {
   const missing = required.filter(([cmd]) => !has(cmd))
   if (missing.length) {
     const pkgs = missing.map(([, pkg]) => pkg).join(" ")
-    throw new Error(`faltan dependencias: ${missing.map(([c]) => c).join(", ")}. En Debian/Ubuntu: sudo apt install ${pkgs}`)
+    const hint = packageManagerHint()
+    const command = hint?.endsWith("sudo apt install") ? `${hint} ${pkgs}` : hint || "instala manualmente los paquetes requeridos"
+    throw new Error(`faltan dependencias: ${missing.map(([c]) => c).join(", ")}. ${command}`)
   }
   log.ok("dependencias presentes: python3, gpg, tar")
   if (!has("opencode")) log.warn("opencode no está en PATH; instálalo antes de usar Claudia")
@@ -174,20 +183,32 @@ function readPassphrase() {
 
 function ensureKeyManager() {
   const src = path.join(packageDir, "skills", "key-manager")
-  for (const file of ["SKILL.md", "README.md", "COMMANDS.md", "key-manager.py"]) {
+  const ownedFiles = ["SKILL.md", "README.md", "COMMANDS.md", "key-manager.py"]
+  for (const file of ownedFiles) {
     if (!fs.existsSync(path.join(src, file))) throw new Error(`falta skills/key-manager/${file} en el paquete`)
   }
-  if (fs.existsSync(keyManagerSkillDir)) {
-    const backup = path.join(configDir, "backups", `key-manager-${stamp()}`)
-    fs.mkdirSync(path.dirname(backup), { recursive: true })
-    fs.cpSync(keyManagerSkillDir, backup, { recursive: true })
-    fs.rmSync(keyManagerSkillDir, { recursive: true, force: true })
-    log.ok(`copia previa de key-manager en ${backup}`)
-  }
   fs.mkdirSync(path.dirname(keyManagerSkillDir), { recursive: true })
-  fs.cpSync(src, keyManagerSkillDir, { recursive: true, filter: (p) => !p.includes("__pycache__") })
+  if (fs.existsSync(keyManagerSkillDir) && fs.lstatSync(keyManagerSkillDir).isSymbolicLink()) {
+    throw new Error(`no se reemplaza un directorio key-manager que sea enlace simbólico: ${keyManagerSkillDir}`)
+  }
+  const backupDir = path.join(configDir, "backups", `key-manager-${stamp()}`)
+  for (const file of ownedFiles) {
+    const target = path.join(keyManagerSkillDir, file)
+    const source = path.join(src, file)
+    if (fs.existsSync(target)) {
+      const stat = fs.lstatSync(target)
+      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`no se reemplaza archivo key-manager no regular: ${target}`)
+      fs.mkdirSync(backupDir, { recursive: true })
+      fs.copyFileSync(target, path.join(backupDir, file), fs.constants.COPYFILE_EXCL)
+    }
+    fs.mkdirSync(keyManagerSkillDir, { recursive: true })
+    const tmp = `${target}.tmp-${process.pid}`
+    fs.copyFileSync(source, tmp)
+    fs.renameSync(tmp, target)
+  }
   fs.chmodSync(keyManagerScript, 0o755)
-  log.ok(`skill key-manager instalada en ${keyManagerSkillDir}`)
+  if (fs.existsSync(backupDir)) log.ok(`copias previas por fichero en ${backupDir}`)
+  log.ok(`archivos administrados de key-manager fusionados en ${keyManagerSkillDir}; datos/store preservados`)
 
   // restore refuses an existing store (.local-key present), so it must run before init.
   if (restoreFile) {
@@ -211,7 +232,7 @@ function ensureKeyManager() {
 function ensureConfig() {
   if (fs.existsSync(configPath)) return log.skip(`configuración existente: ${configPath}`)
   fs.mkdirSync(configDir, { recursive: true })
-  fs.writeFileSync(configPath, `${JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: { servers: {} } }, null, 2)}\n`)
+  atomicConfigWrite(configPath, `${JSON.stringify({ $schema: "https://opencode.ai/config.json", mcp: { servers: {} } }, null, 2)}\n`)
   log.ok("opencode.json creado (no existía)")
 }
 
@@ -302,7 +323,7 @@ async function registerLocalLlm(baseUrl) {
     options: { baseURL: baseUrl },
     models: Object.fromEntries(ids.map((id) => [id, { name: id }])),
   }
-  fs.writeFileSync(configPath, `${JSON.stringify(cfg, null, 2)}\n`)
+  atomicConfigWrite(configPath, `${JSON.stringify(cfg, null, 2)}\n`)
   log.ok(`proveedor llama-cpp registrado en ${baseUrl} con ${ids.length} modelos (copia previa: ${backup})`)
 }
 

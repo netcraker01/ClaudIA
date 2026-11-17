@@ -6,6 +6,12 @@ import os from "node:os"
 import { fileURLToPath } from "node:url"
 
 const packageDir = path.dirname(fileURLToPath(import.meta.url))
+function atomicWrite(file, content) {
+  const temporary = `${file}.claudia-tmp-${process.pid}`
+  const mode = fs.existsSync(file) ? fs.statSync(file).mode & 0o777 : 0o600
+  fs.writeFileSync(temporary, content, { mode })
+  fs.renameSync(temporary, file)
+}
 const configDir = path.join(os.homedir(), ".config", "opencode")
 const configPath = path.join(configDir, "opencode.json")
 const tuiPath = path.join(configDir, "tui.jsonc")
@@ -270,7 +276,7 @@ if (config.tools) {
 }
 delete config.subagent_depth
 
-fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
+atomicWrite(configPath, `${JSON.stringify(config, null, 2)}\n`)
 
 fs.mkdirSync(tuiV2Dir, { recursive: true })
 fs.copyFileSync(tuiV2Source, tuiV2Target)
@@ -311,7 +317,7 @@ if (fs.existsSync(tuiPath)) {
       entry !== "./claudia-model-manager"
     )
     tuiConfig.plugin.push("./claudia-model-manager")
-    fs.writeFileSync(tuiPath, `${JSON.stringify(tuiConfig, null, 2)}\n`)
+     atomicWrite(tuiPath, `${JSON.stringify(tuiConfig, null, 2)}\n`)
   }
 }
 
@@ -319,7 +325,7 @@ const cliConfig = fs.existsSync(cliPath) ? JSON.parse(fs.readFileSync(cliPath, "
 cliConfig.plugins ??= []
 cliConfig.plugins = cliConfig.plugins.filter((entry) => !isSelectorPlugin(entry))
 if (!cliConfig.plugins.includes("./claudia-model-manager")) cliConfig.plugins.push("./claudia-model-manager")
-fs.writeFileSync(cliPath, `${JSON.stringify(cliConfig, null, 2)}\n`)
+atomicWrite(cliPath, `${JSON.stringify(cliConfig, null, 2)}\n`)
 
 console.log(JSON.stringify({
   status: "installed",

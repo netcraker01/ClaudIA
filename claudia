@@ -1,0 +1,169 @@
+#!/usr/bin/env node
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import crypto from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+
+const repo = 'netcraker01/ClaudIA'
+const workflow = '.github/workflows/release.yml'
+const home = os.homedir()
+const data = path.join(home, '.local/share/claudia')
+const versions = path.join(data, 'versions')
+const active = path.join(data, 'active')
+const bin = path.join(home, '.local/bin/claudia')
+const manifestPath = path.join(data, 'manifest.json')
+const lockPath = path.join(home, '.local/share/claudia.lock')
+const launcherText = '#!/bin/sh\nexec "$HOME/.local/share/claudia/active/claudia" "$@"\n'
+const packageRoots = new Set(['claudia','package-manifest.json','install-claudia-all.mjs','install-claudia-light.mjs','install-claudia-orchestration.mjs','repair-claudia-engram.mjs','claudia-model-manager-v2','profiles','skills'])
+function allowedPackageFile(rel){return ['claudia','install-claudia-all.mjs','install-claudia-light.mjs','install-claudia-orchestration.mjs','repair-claudia-engram.mjs','claudia-model-manager-v2/package.json','claudia-model-manager-v2/tui.tsx','profiles/PROFILE-FORMAT.md','package-manifest.json'].includes(rel)||/^profiles\/claudia-[A-Za-z0-9._-]+\.json$/.test(rel)||['skills/terminal-browser/SKILL.md','skills/key-manager/SKILL.md','skills/key-manager/README.md','skills/key-manager/COMMANDS.md','skills/key-manager/key-manager.py'].includes(rel)}
+const requiredPackageFiles=['claudia','install-claudia-all.mjs','install-claudia-light.mjs','install-claudia-orchestration.mjs','repair-claudia-engram.mjs','claudia-model-manager-v2/package.json','claudia-model-manager-v2/tui.tsx','profiles/PROFILE-FORMAT.md','skills/terminal-browser/SKILL.md','skills/key-manager/SKILL.md','skills/key-manager/README.md','skills/key-manager/COMMANDS.md','skills/key-manager/key-manager.py']
+const run = (cmd, args, opts = {}) => {
+  const r = spawnSync(cmd, args, { encoding: 'utf8', stdio: opts.capture ? ['ignore','pipe','inherit'] : 'inherit', ...opts })
+  if (r.error || r.status !== 0) throw new Error(`${cmd} failed${r.error ? `: ${r.error.message}` : ` (${r.status})`}`)
+  return r
+}
+const safe = (p) => { const s = fs.lstatSync(p); if (s.isSymbolicLink()) throw Error(`Refusing symlink: ${p}`); return s }
+function copyTree(src, dst) {
+  const st = fs.lstatSync(src)
+  if (st.isSymbolicLink()) throw Error(`Symlink in package: ${src}`)
+  if (st.isDirectory()) { fs.mkdirSync(dst, { recursive: true }); for (const n of fs.readdirSync(src)) copyTree(path.join(src,n),path.join(dst,n)) }
+  else if (st.isFile()) { fs.mkdirSync(path.dirname(dst),{recursive:true}); fs.copyFileSync(src,dst) }
+}
+function atomicWrite(file, content) { const tmp=`${file}.claudia-tmp-${process.pid}`; fs.writeFileSync(tmp,content,{mode:0o600}); fs.renameSync(tmp,file) }
+function listFiles(dir, prefix='') { return fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>{ const r=path.posix.join(prefix,e.name); return e.isDirectory()?listFiles(path.join(dir,e.name),r):[r] }) }
+function listDirs(dir){return fs.readdirSync(dir,{withFileTypes:true}).filter(e=>e.isDirectory()&&!e.isSymbolicLink()).flatMap(e=>{const p=path.join(dir,e.name);return [...listDirs(p),p]})}
+function relativeDirs(dir,prefix=''){return fs.readdirSync(dir,{withFileTypes:true}).filter(e=>e.isDirectory()).flatMap(e=>{const rel=path.posix.join(prefix,e.name);return [rel,...relativeDirs(path.join(dir,e.name),rel)]}).sort()}
+function expectedDirs(files){return [...new Set(files.flatMap(f=>{const parts=f.split('/');parts.pop();return parts.map((_,i)=>parts.slice(0,i+1).join('/'))}))].sort()}
+function jsonChanges(before,after,prefix=[],out=[]){const keys=new Set([...Object.keys(before||{}),...Object.keys(after||{})]);for(const k of keys){if(/token|secret|password|credential|api.?key|private.?key/i.test(k)||k==='provider')continue;const a=before?.[k],b=after?.[k];if(a&&b&&typeof a==='object'&&typeof b==='object'&&!Array.isArray(a)&&!Array.isArray(b)){jsonChanges(a,b,[...prefix,k],out);continue}if(JSON.stringify(a)!==JSON.stringify(b))out.push({path:[...prefix,k],beforeExists:Object.hasOwn(before||{},k),before:a,afterExists:Object.hasOwn(after||{},k),after:b,installedSha256:crypto.createHash('sha256').update(JSON.stringify(b)??'<undefined>').digest('hex')})}return out}
+function getAt(obj,parts){let cur=obj;for(const p of parts){if(!cur||typeof cur!=='object'||!Object.hasOwn(cur,p))return {exists:false};cur=cur[p]}return {exists:true,value:cur}}
+function setAt(obj,parts,state){let cur=obj;for(const p of parts.slice(0,-1)){if(!cur[p]||typeof cur[p]!=='object'||Array.isArray(cur[p]))cur[p]={};cur=cur[p]}if(state.exists)cur[parts.at(-1)]=state.value;else delete cur[parts.at(-1)]}
+const managedSharedFiles=()=>{const c=path.join(home,'.config/opencode');return ['claudia-model-manager/tui.tsx','claudia-model-manager/package.json','skills/terminal-browser/SKILL.md','skills/key-manager/SKILL.md','skills/key-manager/README.md','skills/key-manager/key-manager.py'].map(r=>path.join(c,r))}
+function assertSafeParents(file){const stop=path.join(home,'.config');let cur=stop;for(const part of path.relative(stop,path.dirname(file)).split(path.sep).filter(Boolean)){if(fs.existsSync(cur)&&fs.lstatSync(cur).isSymbolicLink())throw Error(`Refusing symlink parent: ${cur}`);cur=path.join(cur,part)}if(fs.existsSync(cur)&&fs.lstatSync(cur).isSymbolicLink())throw Error(`Refusing symlink parent: ${cur}`)}
+function assertNoSymlinkComponents(target){const absolute=path.resolve(target);let cur=path.parse(absolute).root;for(const part of absolute.slice(cur.length).split(path.sep).filter(Boolean)){cur=path.join(cur,part);if(fs.existsSync(cur)&&fs.lstatSync(cur).isSymbolicLink())throw Error(`Refusing symlink path component: ${cur}`)}}
+function captureFiles(){return managedSharedFiles().map(file=>{assertSafeParents(file);return{file,bytes:fs.existsSync(file)&&!fs.lstatSync(file).isSymbolicLink()?fs.readFileSync(file):null,mode:fs.existsSync(file)?fs.statSync(file).mode&0o777:null}})}
+function restoreFiles(before){for(const item of before){assertSafeParents(item.file);const parent=path.dirname(item.file);fs.mkdirSync(parent,{recursive:true});if(item.bytes){const tmp=`${item.file}.rollback-${process.pid}`;fs.writeFileSync(tmp,item.bytes,{mode:item.mode||0o600});fs.renameSync(tmp,item.file)}else if(fs.existsSync(item.file)&&!fs.lstatSync(item.file).isSymbolicLink())fs.rmSync(item.file)}}
+function lock(){assertNoSymlinkComponents(lockPath);fs.mkdirSync(path.dirname(lockPath),{recursive:true});const fd=fs.openSync(lockPath,'wx',0o600);fs.writeFileSync(fd,String(process.pid));return()=>{fs.closeSync(fd);fs.rmSync(lockPath,{force:true})}}
+function swapActive(target) { const temp=`${active}.new-${process.pid}`; fs.rmSync(temp,{force:true}); fs.symlinkSync(path.relative(data,target),temp); fs.renameSync(temp,active) }
+function checkedFile(root, rel) {
+  if (typeof rel !== 'string' || !rel || path.isAbsolute(rel) || rel.split(/[\\/]/).some(p=>!p||p==='.'||p==='..')) throw Error(`Invalid owned path: ${rel}`)
+  const resolved=path.resolve(root,rel); if(!resolved.startsWith(`${path.resolve(root)}${path.sep}`))throw Error(`Owned path escapes root: ${rel}`)
+  let cur=path.resolve(root); for(const part of rel.split(/[\\/]/).slice(0,-1)){cur=path.join(cur,part);if(fs.existsSync(cur)&&fs.lstatSync(cur).isSymbolicLink())throw Error(`Symlink parent in owned path: ${cur}`)}
+  if(fs.existsSync(resolved)&&fs.lstatSync(resolved).isSymbolicLink())throw Error(`Owned file is symlink: ${resolved}`)
+  if(fs.existsSync(resolved)){const realRoot=fs.realpathSync(root),realFile=fs.realpathSync(resolved);if(!realFile.startsWith(`${realRoot}${path.sep}`))throw Error(`Owned file resolves outside package root: ${rel}`)}
+  return resolved
+}
+function removeVerifiedFile(root,entry){const file=checkedFile(root,entry.path);if(!fs.existsSync(file))throw Error(`Owned file disappeared during removal: ${entry.path}`);const st=fs.lstatSync(file);if(!st.isFile()||st.isSymbolicLink())throw Error(`Owned file changed type: ${entry.path}`);const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{const opened=fs.fstatSync(fd);if(opened.dev!==st.dev||opened.ino!==st.ino||crypto.createHash('sha256').update(fs.readFileSync(fd)).digest('hex')!==entry.sha256)throw Error(`Owned file changed during removal: ${entry.path}`)}finally{fs.closeSync(fd)}if(fs.realpathSync(file)!==file)throw Error(`Owned file path changed during removal: ${entry.path}`);fs.unlinkSync(file)}
+function sameIdentity(a,b){return a.dev===b.dev&&a.ino===b.ino&&a.mode===b.mode}
+function quarantineOwned(target,expected,kind,expectedHash){const st=fs.lstatSync(target);if(!sameIdentity(st,expected)||(kind==='symlink'&&(!st.isSymbolicLink()||fs.readlinkSync(target)!==expected.link))||(kind==='file'&&(!st.isFile()||st.isSymbolicLink()||crypto.createHash('sha256').update(fs.readFileSync(target)).digest('hex')!==expectedHash)))throw Error(`Owned entry changed before quarantine: ${target}`);const quarantine=`${target}.claudia-remove-${process.pid}`;if(fs.existsSync(quarantine)||fs.lstatSync(quarantine,{throwIfNoEntry:false}))throw Error(`Quarantine path already exists: ${quarantine}`);fs.renameSync(target,quarantine);const moved=fs.lstatSync(quarantine);if(!sameIdentity(moved,expected)||(kind==='symlink'&&(!moved.isSymbolicLink()||fs.readlinkSync(quarantine)!==expected.link))||(kind==='file'&&(!moved.isFile()||moved.isSymbolicLink()||crypto.createHash('sha256').update(fs.readFileSync(quarantine)).digest('hex')!==expectedHash))){if(!fs.existsSync(target))fs.renameSync(quarantine,target);throw Error(`Entry changed during quarantine; preserved: ${target}`)}return{path:quarantine,identity:expected,kind,hash:expectedHash,link:expected.link}}
+function removeQuarantine(item){const st=fs.lstatSync(item.path);if(!sameIdentity(st,item.identity)||(item.kind==='symlink'&&(!st.isSymbolicLink()||fs.readlinkSync(item.path)!==item.link))||(item.kind==='file'&&(!st.isFile()||st.isSymbolicLink()||crypto.createHash('sha256').update(fs.readFileSync(item.path)).digest('hex')!==item.hash)))throw Error(`Quarantined entry changed; preserving: ${item.path}`);fs.unlinkSync(item.path)}
+function validateVersionRecord(record){if(!record||typeof record.version!=='string'||!/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(record.version)||!Array.isArray(record.files))throw Error('Invalid installed-version ownership record');const root=path.resolve(versions,record.version);if(!root.startsWith(`${path.resolve(versions)}${path.sep}`))throw Error('Version path escapes ownership root');safe(root);const actual=listFiles(root).sort(),listed=record.files.map(e=>e?.path).sort();if(JSON.stringify(actual)!==JSON.stringify(listed)||JSON.stringify(relativeDirs(root))!==JSON.stringify(expectedDirs(actual)))throw Error(`Ownership file set mismatch for ${record.version}`);const pm=JSON.parse(fs.readFileSync(checkedFile(root,'package-manifest.json'),'utf8'));if(pm.version!==record.version||!Array.isArray(pm.files)||JSON.stringify(pm.files.map(e=>e.path).sort())!==JSON.stringify(actual.filter(p=>p!=='package-manifest.json')))throw Error(`Invalid package manifest for ${record.version}`);if(requiredPackageFiles.some(p=>!actual.includes(p))||!actual.some(p=>p.startsWith('profiles/claudia-')&&p.endsWith('.json')))throw Error(`Incomplete package ${record.version}`);for(const item of record.files){if(!allowedPackageFile(item.path)||!/^[a-f0-9]{64}$/.test(item.sha256))throw Error('Invalid ownership hash record');const file=checkedFile(root,item.path);if(!fs.existsSync(file)||crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')!==item.sha256)throw Error(`Package hash mismatch ${record.version}/${item.path}`)}for(const item of pm.files){if(!allowedPackageFile(item.path)||!/^[a-f0-9]{64}$/.test(item.sha256))throw Error('Invalid package hash record');if(crypto.createHash('sha256').update(fs.readFileSync(checkedFile(root,item.path))).digest('hex')!==item.sha256)throw Error(`Package manifest hash mismatch ${record.version}/${item.path}`)}return root}
+async function install(version) {
+    for (const cmd of ['node','gh','tar','python3']) run(cmd,['--version'],{stdio:'ignore'})
+  run('gh',['auth','status'])
+  const unlock=lock()
+  const temp=fs.mkdtempSync(path.join(os.tmpdir(),'claudia-'))
+  let oldConfig, oldTui, oldCli
+  try {
+    const supplied=process.env.CLAUDIA_VERIFIED_ARCHIVE
+    const tag=version==='latest'?run('gh',['release','view','--repo',repo,'--json','tagName','--jq','.tagName'],{capture:true}).stdout.trim():version
+    if(!/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(tag)) throw Error(`Invalid release tag: ${tag}`)
+    const archive=`claudia-${tag}.tar.gz`
+    if(supplied){if(path.basename(supplied)!==archive)throw Error(`Archive filename must be ${archive}`);const fd=fs.openSync(supplied,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{if(!fs.fstatSync(fd).isFile())throw Error('Archive must be a regular, non-symlink file');fs.writeFileSync(path.join(temp,archive),fs.readFileSync(fd),{flag:'wx',mode:0o600})}finally{fs.closeSync(fd)}}
+    else run('gh',['release','download',tag,'--repo',repo,'--pattern',archive,'--dir',temp])
+    const entries=fs.readdirSync(temp);if(entries.length!==1||entries[0]!==archive)throw Error(`Expected exactly ${archive}`)
+    const file=path.join(temp,archive)
+    if(!fs.lstatSync(file).isFile()||fs.lstatSync(file).isSymbolicLink())throw Error('Downloaded archive must be a regular, non-symlink file')
+    run('gh',['attestation','verify',file,'--repo',repo,'--signer-repo',repo,'--signer-workflow',`${repo}/${workflow}`])
+    const inspector=`import json,sys,tarfile\nitems=[]\nwith tarfile.open(sys.argv[1], 'r:gz') as archive:\n for member in archive.getmembers():\n  kind='directory' if member.isdir() else 'regular' if member.isreg() else 'other'\n  items.append({'name':member.name,'kind':kind})\nprint(json.dumps(items))`
+    const archiveEntries=JSON.parse(run('python3',['-c',inspector,file],{capture:true}).stdout)
+    if(!Array.isArray(archiveEntries)||!archiveEntries.length||archiveEntries.some(e=>e.kind!=='directory'&&e.kind!=='regular'))throw Error('Archive contains unsupported entry types')
+    const names=archiveEntries.map(e=>e.name)
+    const normalized=names.map((name,index)=>{if(name==='claudia'){if(archiveEntries[index].kind!=='directory')throw Error('Archive root must be a directory');return ''}if(typeof name!=='string'||!name||/[\0\r\n]/.test(name)||name.includes('\\')||path.posix.isAbsolute(name)||name.split('/').some(part=>!part||part==='.'||part==='..')||!name.startsWith('claudia/'))throw Error(`Unsafe archive entry: ${JSON.stringify(name)}`);return name.replace(/\/$/,'').slice('claudia/'.length)})
+    if(new Set(names).size!==names.length||normalized.some(name=>name&&!packageRoots.has(name.split('/')[0])&&!allowedPackageFile(name)))throw Error('Archive entry set is invalid')
+    const unpack=path.join(temp,'unpacked'); fs.mkdirSync(unpack)
+    run('tar',['-xzf',file,'-C',unpack,'--no-same-owner','--no-same-permissions'])
+    const roots=fs.readdirSync(unpack); if(roots.length!==1||roots[0]!=='claudia') throw Error('Unexpected archive layout')
+    const source=path.join(unpack,roots[0]); safe(source)
+    for(const entry of fs.readdirSync(source))if(!packageRoots.has(entry))throw Error(`Unowned package path: ${entry}`)
+    const packageManifestPath=path.join(source,'package-manifest.json');if(!fs.existsSync(packageManifestPath)||fs.lstatSync(packageManifestPath).isSymbolicLink())throw Error('Package manifest missing or unsafe')
+    const packageManifest=JSON.parse(fs.readFileSync(packageManifestPath,'utf8'));if(packageManifest.version!==tag||!Array.isArray(packageManifest.files))throw Error('Package manifest version/content mismatch')
+    const packageFiles=listFiles(source).filter(rel=>rel!=='package-manifest.json').sort();for(const rel of packageFiles)if(!allowedPackageFile(rel))throw Error(`Unowned package file: ${rel}`)
+    if(JSON.stringify(relativeDirs(source))!==JSON.stringify(expectedDirs(listFiles(source))))throw Error('Package contains unowned empty or missing directories')
+    if(requiredPackageFiles.some(rel=>!packageFiles.includes(rel))||!packageFiles.some(rel=>rel.startsWith('profiles/claudia-')&&rel.endsWith('.json')))throw Error('Release package is missing required ClaudIA resources')
+    const listed=[...packageManifest.files].map(e=>e.path).sort();if(JSON.stringify(listed)!==JSON.stringify(packageFiles))throw Error('Package manifest file set mismatch')
+    for(const record of packageManifest.files){if(!allowedPackageFile(record.path)||!/^[a-f0-9]{64}$/.test(record.sha256))throw Error(`Invalid package manifest record: ${record.path}`);const p=checkedFile(source,record.path);if(crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex')!==record.sha256)throw Error(`Package file hash mismatch: ${record.path}`)}
+    const cfg=path.join(home,'.config/opencode/opencode.json')
+    if(!fs.existsSync(cfg)) throw Error(`OpenCode config missing: ${cfg}`)
+    oldConfig=fs.readFileSync(cfg); const tui=path.join(home,'.config/opencode/tui.jsonc'), cli=path.join(home,'.config/opencode/cli.json')
+    oldTui=fs.existsSync(tui)?fs.readFileSync(tui):null; oldCli=fs.existsSync(cli)?fs.readFileSync(cli):null
+    assertNoSymlinkComponents(data);assertNoSymlinkComponents(bin)
+    if(fs.existsSync(data))safe(data)
+    fs.mkdirSync(versions,{recursive:true})
+    let priorVersions=[]
+    if(fs.existsSync(manifestPath)){safe(manifestPath);const prior=JSON.parse(fs.readFileSync(manifestPath));priorVersions=prior.versions||[{version:prior.version,files:prior.files}];for(const record of priorVersions)validateVersionRecord(record);const dirs=fs.readdirSync(versions).filter(n=>fs.lstatSync(path.join(versions,n)).isDirectory()).sort(),ownedNames=priorVersions.map(v=>v.version).sort();if(JSON.stringify(dirs)!==JSON.stringify(ownedNames))throw Error('Existing version directory set differs from ownership manifest')}
+    else if(fs.readdirSync(versions).length)throw Error('Unregistered version directories exist; refusing to adopt them')
+    const versionDir=path.join(versions,tag)
+    if(fs.existsSync(versionDir))throw Error(`Version already installed: ${tag}`)
+    const stage=path.join(versions,`.stage-${tag}-${process.pid}`); if(fs.existsSync(stage))throw Error('Staging directory already exists'); copyTree(source,stage)
+    const owned=listFiles(stage)
+    const oldTarget=fs.existsSync(active)?fs.readlinkSync(active):null
+    const oldLauncher=fs.existsSync(bin)?fs.readFileSync(bin):null
+    const managed=[cfg,tui,cli].map(p=>({path:p,bytes:fs.existsSync(p)?fs.readFileSync(p):null}))
+    const filesBefore=captureFiles()
+    let versionActivated=false
+    try {
+      fs.renameSync(stage,versionDir)
+      versionActivated=true
+      swapActive(versionDir)
+      fs.mkdirSync(path.dirname(bin),{recursive:true}); atomicWrite(bin,launcherText); fs.chmodSync(bin,0o755)
+      const p=spawnSync('node',[path.join(versionDir,'install-claudia-orchestration.mjs')],{stdio:'inherit'}); if(p.error||p.status!==0) throw Error('Claudia configuration installer failed')
+      const jsonOwned=[]
+      for(const item of managed){const before=item.bytes?JSON.parse(item.bytes):{};const after=fs.existsSync(item.path)?JSON.parse(fs.readFileSync(item.path,'utf8')):{};jsonOwned.push({path:item.path,changes:jsonChanges(before,after)})}
+      const hash=crypto.createHash('sha256')
+      const managedFiles=filesBefore.flatMap(old=>{const installed=fs.existsSync(old.file)&&!fs.lstatSync(old.file).isSymbolicLink()?fs.readFileSync(old.file):null;if((old.bytes===null&&installed===null)||(old.bytes&&installed&&old.bytes.equals(installed)))return[];return[{path:old.file,prior:old.bytes?.toString('base64')??null,priorMode:old.mode,installedSha256:installed?crypto.createHash('sha256').update(installed).digest('hex'):null}]})
+      const files=owned.map(rel=>({path:rel,sha256:crypto.createHash('sha256').update(fs.readFileSync(checkedFile(versionDir,rel))).digest('hex')}))
+      const manifest={version:tag,release:tag,files,versions:[...priorVersions,{version:tag,files}],launcher:{path:bin,sha256:hash.update(launcherText).digest('hex')},jsonOwned,managedFiles,nonRollbackable:['Engram and terminal-browser shared dependencies are additive prerequisites and remain after uninstall','Profiles created by the orchestration installer are not removed']}
+      atomicWrite(manifestPath,JSON.stringify(manifest,null,2)+'\n')
+    } catch(e) {
+      if(oldTarget)swapActive(path.resolve(data,oldTarget));else fs.rmSync(active,{force:true})
+      if(oldLauncher)atomicWrite(bin,oldLauncher);else fs.rmSync(bin,{force:true})
+      for(const item of managed){if(item.bytes)atomicWrite(item.path,item.bytes);else fs.rmSync(item.path,{force:true})}
+      restoreFiles(filesBefore)
+      if(versionActivated){for(const rel of owned.reverse()){const file=checkedFile(versionDir,rel);fs.rmSync(file,{force:true})}if(fs.existsSync(versionDir))for(const dir of listDirs(versionDir))try{fs.rmdirSync(dir)}catch{};try{fs.rmdirSync(versionDir)}catch{}}
+      else if(fs.existsSync(stage)){for(const rel of owned.reverse())fs.rmSync(checkedFile(stage,rel),{force:true});for(const dir of listDirs(stage))try{fs.rmdirSync(dir)}catch{};try{fs.rmdirSync(stage)}catch{}}
+      throw e
+    }
+    console.log(`ClaudIA ${tag} installed. Ensure ~/.local/bin is in PATH.`)
+  } finally { fs.rmSync(temp,{recursive:true,force:true});unlock() }
+}
+function status(){ if(!fs.existsSync(manifestPath)){console.log('ClaudIA is not installed');return} safe(manifestPath);const m=JSON.parse(fs.readFileSync(manifestPath));console.log(`ClaudIA ${m.version}\nActive: ${fs.existsSync(active)?fs.readlinkSync(active):'missing'}\n${data}\n${bin}`) }
+function uninstall(){ if(!fs.existsSync(manifestPath)){console.log('No ClaudIA ownership manifest; nothing removed.');return} assertNoSymlinkComponents(data);assertNoSymlinkComponents(bin);safe(data);safe(manifestPath);const m=JSON.parse(fs.readFileSync(manifestPath)); if(!Array.isArray(m.files)||!Array.isArray(m.versions)||typeof m.version!=='string'||!/^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(m.version)||!m.launcher||m.launcher.path!==bin)throw Error('Invalid ownership manifest')
+  safe(versions);const records=m.versions;const names=records.map(r=>r?.version).sort(),dirs=fs.readdirSync(versions).filter(n=>fs.lstatSync(path.join(versions,n)).isDirectory()).sort();if(new Set(names).size!==names.length||JSON.stringify(names)!==JSON.stringify(dirs))throw Error('Version directory set differs from ownership manifest')
+  const versionDirs=records.map(validateVersionRecord);const current=records.find(r=>r.version===m.version);if(m.release!==m.version||!current||JSON.stringify(current.files)!==JSON.stringify(m.files))throw Error('Package release/version ownership mismatch')
+  const versionDir=path.join(versions,m.version)
+  for(const entry of m.files){const file=checkedFile(versionDir,entry.path);if(!fs.existsSync(file)||crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')!==entry.sha256)throw Error(`Preserving changed package file conflict: ${entry.path}`)}
+  if(!fs.existsSync(bin)||!fs.existsSync(active))throw Error('Active pointer or launcher missing; preserving installation')
+  const launcherStat=safe(bin),launcherHash=crypto.createHash('sha256').update(fs.readFileSync(bin)).digest('hex');if(!launcherStat.isFile()||launcherHash!==m.launcher.sha256)throw Error('Launcher changed by user; preserving conflict')
+  const activeStat=fs.lstatSync(active),activeLink=activeStat.isSymbolicLink()?fs.readlinkSync(active):null;if(!activeStat.isSymbolicLink()||path.resolve(data,activeLink)!==versionDir)throw Error('Active pointer changed by user; preserving conflict')
+  const restores=[]
+  for(const file of m.jsonOwned||[]){if(![path.join(home,'.config/opencode/opencode.json'),path.join(home,'.config/opencode/tui.jsonc'),path.join(home,'.config/opencode/cli.json')].includes(file.path))throw Error('Manifest contains an unowned config path');if(!fs.existsSync(file.path))continue;const obj=JSON.parse(fs.readFileSync(file.path,'utf8'));for(const change of file.changes||[]){if(!Array.isArray(change.path)||change.path.length===0||change.path.some(p=>typeof p!=='string'||/token|secret|password|credential|api.?key|private.?key|provider/i.test(p)))throw Error('Manifest contains an unsafe config key');const current=getAt(obj,change.path);if(current.exists!==change.afterExists||(current.exists&&crypto.createHash('sha256').update(JSON.stringify(current.value)).digest('hex')!==change.installedSha256))continue;setAt(obj,change.path,{exists:change.beforeExists,value:change.before})}restores.push({path:file.path,obj})}
+  const fileRestores=[]
+  for(const item of m.managedFiles||[]){if(!managedSharedFiles().includes(item.path))throw Error('Manifest contains an unowned shared file');assertSafeParents(item.path);if(!fs.existsSync(item.path)){if(item.prior!==null)continue;continue}if(fs.lstatSync(item.path).isSymbolicLink())throw Error(`Preserving symlink conflict: ${item.path}`);const digest=crypto.createHash('sha256').update(fs.readFileSync(item.path)).digest('hex');if(digest!==item.installedSha256){console.warn(`Preserving changed shared file: ${item.path}`);continue}fileRestores.push(item)}
+  console.log(`Remove only manifest-listed package files, active pointer and unchanged CLI launcher. Shared dependencies and user configuration/data remain.`)
+  if(!process.stdin.isTTY&&process.env.NODE_ENV!=='test')throw Error('Uninstall requires an interactive confirmation')
+  if(requireConfirm()!=='y')return
+  if(process.env.NODE_ENV==='test'&&process.env.CLAUDIA_TEST_UNINSTALL_HOOK==='replace-active') {fs.unlinkSync(active);fs.symlinkSync(path.join(home,'sentinel'),active)}
+  if(process.env.NODE_ENV==='test'&&process.env.CLAUDIA_TEST_UNINSTALL_HOOK==='replace-launcher') {fs.unlinkSync(bin);fs.symlinkSync(path.join(home,'sentinel'),bin)}
+  const quarantined=[]
+  quarantined.push(quarantineOwned(active,{dev:activeStat.dev,ino:activeStat.ino,mode:activeStat.mode,link:activeLink},'symlink',null))
+  try{quarantined.push(quarantineOwned(bin,launcherStat,'file',m.launcher.sha256))}catch(error){const q=quarantined.pop();if(!fs.existsSync(active))fs.renameSync(q.path,active);throw error}
+  for(const item of restores)atomicWrite(item.path,`${JSON.stringify(item.obj,null,2)}\n`)
+  for(const item of fileRestores){if(item.prior===null)fs.rmSync(item.path,{force:true});else{const tmp=`${item.path}.restore-${process.pid}`;fs.writeFileSync(tmp,Buffer.from(item.prior,'base64'),{mode:item.priorMode||0o600});fs.renameSync(tmp,item.path)}}
+  for(let i=0;i<records.length;i++)for(const entry of [...records[i].files].reverse())removeVerifiedFile(versionDirs[i],entry)
+  for(const root of versionDirs){for(const dir of listDirs(root))fs.rmdirSync(dir);fs.rmdirSync(root)}
+  for(const item of quarantined)removeQuarantine(item);fs.rmSync(manifestPath);console.log('ClaudIA package files removed; shared dependencies/configuration/data preserved.')
+}
+function requireConfirm(){if(process.env.NODE_ENV==='test'&&process.env.CLAUDIA_CONFIRM)return process.env.CLAUDIA_CONFIRM.toLowerCase();const r=spawnSync('bash',['-c','read -r -p "Proceed? [y/N] " x; printf %s "$x"'],{stdio:['inherit','pipe','inherit'],encoding:'utf8'});return r.stdout.trim().toLowerCase()}
+async function main(){try{const[action,arg,...rest]=process.argv.slice(2);if(rest.length)throw Error('Unexpected arguments');if(action==='install'||action==='update'){if(arg==='--latest'||!arg)await install('latest');else if(arg.startsWith('--version=')){const v=arg.slice(10);if(v==='latest')throw Error('Use --latest instead of --version=latest');await install(v)}else if(arg.startsWith('v'))await install(arg);else throw Error('Usage: claudia install|update [--latest|--version=TAG]')}else if(action==='status')status();else if(action==='uninstall'){const release=lock();try{uninstall()}finally{release()}}else throw Error('Usage: claudia install|update [--latest|--version=TAG] | uninstall | status')}catch(e){console.error(`claudia: ${e.message}`);process.exitCode=1}}
+main().then(()=>{}).catch(e=>{console.error(`claudia: ${e.message}`);process.exitCode=1})
