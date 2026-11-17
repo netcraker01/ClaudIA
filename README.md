@@ -12,12 +12,12 @@ Claudia usa la configuración V2 de agentes de OpenCode (`agents` y `permissions
 
 ### Instalación/actualización gestionada (Linux Ubuntu/Debian y Arch/Omarchy)
 
-Soporta Linux Ubuntu/Debian y Arch Linux/Omarchy. Requiere OpenCode ya instalado, Node.js, Python 3, `tar` y `gh` autenticado con acceso al repositorio privado. En Arch/Omarchy, instala manualmente los paquetes necesarios (por ejemplo `sudo pacman -S nodejs npm github-cli python gnupg tar`); en Debian/Ubuntu, `sudo apt install ...`. La primera instalación usa el último artefacto de release y verifica la attestation de GitHub Actions (repo y workflow esperados) antes de extraerlo. Instala dependencias del sistema por separado con autorización explícita: el CLI no ejecuta sudo ni modifica credenciales.
+Soporta Linux Ubuntu/Debian y Arch Linux/Omarchy. Requiere OpenCode ya instalado, Node.js, Python 3, `tar`, `gh` autenticado y `curl`. En Arch/Omarchy, instala manualmente los paquetes necesarios (por ejemplo `sudo pacman -S nodejs npm github-cli curl python gnupg tar`); en Debian/Ubuntu, instala sus equivalentes. La primera instalación descarga el bootstrap desde este commit inmutable, y este obtiene el último artefacto de release y verifica su attestation de GitHub Actions (repo y workflow esperados) antes de extraerlo. Instala dependencias del sistema por separado con autorización explícita: el CLI no ejecuta sudo ni modifica credenciales.
 
-La primera línea sencilla instala el bootstrap verificado y lo ejecuta:
+Descarga el bootstrap a un archivo temporal y ejecútalo (no se canaliza código remoto al shell):
 
 ```bash
-tmp=$(mktemp -d) && tag=$(gh release view --repo netcraker01/ClaudIA --json tagName --jq .tagName) && gh release download "$tag" --repo netcraker01/ClaudIA --pattern "claudia-${tag}.tar.gz" --dir "$tmp" && gh attestation verify "$tmp/claudia-${tag}.tar.gz" --repo netcraker01/ClaudIA --signer-repo netcraker01/ClaudIA --signer-workflow netcraker01/ClaudIA/.github/workflows/release.yml && tar -xzf "$tmp/claudia-${tag}.tar.gz" -C "$tmp" && CLAUDIA_VERIFIED_ARCHIVE="$tmp/claudia-${tag}.tar.gz" node "$tmp/claudia/claudia" install --version="$tag"; rc=$?; rm -rf "$tmp"; exit "$rc"
+tmp=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/netcraker01/ClaudIA/cafeb5f85bdc30257e94b354c5e336ad84edf542/bootstrap.sh -o "$tmp" && bash "$tmp"; rc=$?; [ -z "${tmp:-}" ] || rm -f "$tmp"; exit "$rc"
 ```
 
 Después, los comandos son `claudia update [--latest|--version=TAG]`, `claudia status` y `claudia uninstall`. La desinstalación solicita confirmación y solo elimina el paquete y lanzador que administra; conserva configuración compartida de OpenCode, perfiles y datos/credenciales de Engram y Key Manager.
