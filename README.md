@@ -17,7 +17,7 @@ Soporta Linux Ubuntu/Debian y Arch Linux/Omarchy. Requiere OpenCode ya instalado
 Descarga el bootstrap a un archivo temporal y ejecútalo (no se canaliza código remoto al shell):
 
 ```bash
-tmp=$(mktemp) && curl -fsSL https://raw.githubusercontent.com/netcraker01/ClaudIA/cafeb5f85bdc30257e94b354c5e336ad84edf542/bootstrap.sh -o "$tmp" && bash "$tmp"; rc=$?; [ -z "${tmp:-}" ] || rm -f "$tmp"; exit "$rc"
+( f=$(mktemp) && trap 'rm -f "$f"' EXIT && curl -fsSL https://raw.githubusercontent.com/netcraker01/ClaudIA/cafeb5f85bdc30257e94b354c5e336ad84edf542/bootstrap.sh -o "$f" && bash "$f" )
 ```
 
 Después, los comandos son `claudia update [--latest|--version=TAG]`, `claudia status` y `claudia uninstall`. La desinstalación solicita confirmación y solo elimina el paquete y lanzador que administra; conserva configuración compartida de OpenCode, perfiles y datos/credenciales de Engram y Key Manager.
