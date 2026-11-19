@@ -13,6 +13,14 @@ import { fileURLToPath } from "node:url"
 const packageDir = path.dirname(fileURLToPath(import.meta.url))
 const configDir = path.join(os.homedir(), ".config", "opencode")
 const configPath = path.join(configDir, "opencode.json")
+const cliPath = path.join(configDir, "cli.json")
+
+function atomicWrite(file, content) {
+  const temporary = `${file}.claudia-tmp-${process.pid}`
+  const mode = fs.existsSync(file) ? fs.statSync(file).mode & 0o777 : 0o600
+  fs.writeFileSync(temporary, content, { mode })
+  fs.renameSync(temporary, file)
+}
 
 if (!fs.existsSync(configPath)) {
   throw new Error(`OpenCode config not found: ${configPath}`)
@@ -23,6 +31,9 @@ const backupPath = `${configPath}.before-claudia-light-${timestamp}.bak`
 fs.copyFileSync(configPath, backupPath)
 
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"))
+const cliConfig = fs.existsSync(cliPath) ? JSON.parse(fs.readFileSync(cliPath, "utf8")) : {}
+const cliBackupPath = fs.existsSync(cliPath) ? `${cliPath}.before-claudia-light-${timestamp}.bak` : undefined
+if (cliBackupPath) fs.copyFileSync(cliPath, cliBackupPath)
 
 // Engram is the working memory of claudia-light and a hard runtime dependency.
 // Reuse the same direct, five-tool catalog as the full Claudia package so the
@@ -136,11 +147,16 @@ if (config.agent && Object.keys(config.agent).length === 0) delete config.agent
 if (!config.default_agent) config.default_agent = "claudia-light"
 
 fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
+cliConfig.session ??= {}
+cliConfig.session.image_preview = true
+atomicWrite(cliPath, `${JSON.stringify(cliConfig, null, 2)}\n`)
 
 console.log(JSON.stringify({
   status: "installed",
   config: configPath,
+  cli: cliPath,
   backup: backupPath,
+  cliBackup: cliBackupPath,
   agent: "claudia-light",
   defaultAgent: config.default_agent,
   subagents: "none",

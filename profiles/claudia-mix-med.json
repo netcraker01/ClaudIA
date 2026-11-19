@@ -6,11 +6,29 @@
     "variant": "medium"
   },
   "agents": {
-    "claudia-simple": { "model": "anthropic/claude-haiku-5-5" },
-    "claudia-explorer": { "model": "openai/gpt-6-luna", "variant": "low" },
-    "claudia-code": { "model": "anthropic/claude-sonnet-5-5" },
-    "claudia-system": { "model": "anthropic/claude-sonnet-5-5" },
-    "claudia-browser": { "model": "anthropic/claude-haiku-5-5" },
-    "claudia-reviewer": { "model": "openai/gpt-6-luna", "variant": "low" }
+    "claudia-simple": {
+      "model": "anthropic/claude-haiku-5-5"
+    },
+    "claudia-explorer": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    },
+    "claudia-code": {
+      "model": "anthropic/claude-sonnet-5-5"
+    },
+    "claudia-system": {
+      "model": "anthropic/claude-sonnet-5-5"
+    },
+    "claudia-browser": {
+      "model": "anthropic/claude-haiku-5-5"
+    },
+    "claudia-reviewer": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    },
+    "claudia-media": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    }
   }
 }

@@ -6,7 +6,7 @@ Esta carpeta es la fuente portable de Claudia. Las futuras modificaciones de pro
 
 Claudia recibe la petición, divide el trabajo y delega la ejecución a subagentes especializados. Los subagentes devuelven resultados compactos para evitar llenar el contexto de Claudia.
 
-Claudia usa la configuración V2 de agentes de OpenCode (`agents` y `permissions`). Los seis subagentes reciben `* allow` para herramientas, ejecución, MCP, rutas externas, edición y acciones de sistema. Sus descripciones y prompts limitan su función, pero OpenCode no les bloquea capacidades.
+Claudia usa la configuración V2 de agentes de OpenCode (`agents` y `permissions`). Los siete subagentes reciben `* allow` para herramientas, ejecución, MCP, rutas externas, edición y acciones de sistema. Sus descripciones y prompts limitan su función, pero OpenCode no les bloquea capacidades.
 
 ## Instalación completa en un equipo nuevo
 
@@ -100,6 +100,7 @@ El instalador modifica la configuración global de OpenCode en:
 
 ```text
 ~/.config/opencode/opencode.json
+~/.config/opencode/cli.json
 ~/.config/opencode/claudia-model-manager/tui.tsx
 ~/.config/opencode/claudia-model-manager/package.json
 ```
@@ -108,7 +109,9 @@ El instalador copia `claudia-model-manager-v2/tui.tsx` y su `package.json` al di
 
 También instala `terminal-browser` y prepara Key Manager en `~/.config/opencode/skills/`. Claudia y `claudia-browser` reutilizan siempre una ventana Terminal Browser ya abierta; no abren otra ventana ni panel. El límite es de cinco pestañas en total, operadas con IDs explícitos. Si no hay ventana abierta, piden al usuario que la inicie. La guía está en [skills/terminal-browser/SKILL.md](skills/terminal-browser/SKILL.md); Key Manager y su utilidad portable están en [skills/key-manager](skills/key-manager). El instalador conserva una skill Key Manager ya existente y copia la del paquete si falta. Cada equipo debe inicializar su propio almacén; nunca se copia `~/.local/share/key-manager` ni `.local-key`.
 
-Antes de escribir crea una copia de seguridad fechada de `opencode.json`.
+Los instaladores de Claudia y Claudia Light activan `session.image_preview: true` en `~/.config/opencode/cli.json`, conservando los demás ajustes de sesión y las preferencias ajenas. Esto permite previsualizar imágenes adjuntas y resultados de herramientas en la conversación de la terminal; un enlace Markdown por sí solo no sustituye un resultado de imagen. OpenCode recarga este ajuste al guardar, sin reiniciar.
+
+Antes de escribir crean una copia de seguridad fechada de `opencode.json` y de `cli.json` si ya existe.
 
 Engram es la única memoria persistente de Claudia y sus subagentes. El instalador configura el MCP con un catálogo directo y acotado a cinco herramientas (`mem_context`, `mem_search`, `mem_get_observation`, `mem_save`, `mem_session_summary`) y concede permisos explícitos a cada herramienta en los siete agentes. Los agentes llaman `engram_mem_context`, `engram_mem_search` y `engram_mem_get_observation`, nunca como comandos Bash. Si Engram devuelve varios proyectos posibles, Claudia pide elegir uno mediante el menú interactivo y repite la consulta; esto es una ambigüedad de contexto, no una caída del MCP. Solo los errores reales de conexión/herramienta requieren reparación. Los permisos de OpenCode no suprimen las restricciones que Linux, sudo o el host remoto apliquen por su cuenta. Los archivos históricos incluidos en esta carpeta son documentación del paquete y no se usan para recordar tareas anteriores.
 
@@ -159,6 +162,7 @@ Y en el TUI, con `/models` o el selector de agente, elige la sesión `claudia-li
 | `claudia-system` | Diagnóstico y operación de hosts, redes, Linux/SSH, servicios y contenedores existentes/en ejecución. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
 | `claudia-browser` | Navegación web completa mediante terminal-browser: búsquedas, formularios, descargas y cargas. | `llama-cpp/gemma-4-26b-a4b-it-qat-ud-q4-k-xl` |
 | `claudia-reviewer` | Verificación compacta de cambios y resultados. No edita. | `llama-cpp/gemma-4-12b-it-ud-q4-k-xl` |
+| `claudia-media` | Imágenes (logotipos, ilustraciones, referencias, PNG con transparencia). Exige brief completo; sin vídeo por ahora. Modelo asignable desde `/claudia`. | `openai/gpt-5.4-mini` |
 
 Los prompts compactos indican a los subagentes que no creen subdelegaciones. Sus herramientas se permiten con `* allow`; las rutas externas se someten a una pregunta de autorización para que un permiso de archivos no se convierta en un bloqueo opaco.
 

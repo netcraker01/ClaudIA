@@ -6,11 +6,33 @@
     "variant": "medium"
   },
   "agents": {
-    "claudia-simple": { "model": "openai/gpt-6-luna", "variant": "low" },
-    "claudia-explorer": { "model": "openai/gpt-6-luna", "variant": "low" },
-    "claudia-code": { "model": "openai/gpt-6.1-sol", "variant": "medium" },
-    "claudia-system": { "model": "openai/gpt-6.1-sol", "variant": "medium" },
-    "claudia-browser": { "model": "openai/gpt-6.1-sol", "variant": "medium" },
-    "claudia-reviewer": { "model": "openai/gpt-6-luna", "variant": "low" }
+    "claudia-simple": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    },
+    "claudia-explorer": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    },
+    "claudia-code": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "medium"
+    },
+    "claudia-system": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "medium"
+    },
+    "claudia-browser": {
+      "model": "openai/gpt-6.1-sol",
+      "variant": "medium"
+    },
+    "claudia-reviewer": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    },
+    "claudia-media": {
+      "model": "openai/gpt-6-luna",
+      "variant": "low"
+    }
   }
 }

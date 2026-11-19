@@ -44,6 +44,9 @@ const backupPath = `${configPath}.before-claudia-orchestration-${timestamp}.bak`
 fs.copyFileSync(configPath, backupPath)
 
 const config = JSON.parse(fs.readFileSync(configPath, "utf8"))
+const cliConfig = fs.existsSync(cliPath) ? JSON.parse(fs.readFileSync(cliPath, "utf8")) : {}
+const cliBackupPath = fs.existsSync(cliPath) ? `${cliPath}.before-claudia-orchestration-${timestamp}.bak` : undefined
+if (cliBackupPath) fs.copyFileSync(cliPath, cliBackupPath)
 config.plugin ??= []
 config.plugins ??= []
 const anthropicAuthPlugin = "@ex-machina/opencode-anthropic-auth@next"
@@ -131,7 +134,8 @@ QUESTIONS AND PLANS
 DELEGATION
 - Claudia orchestrates and delegates execution: she does not edit files or run shell/system commands herself, except for orchestration bookkeeping, reading evidence, or a single trivial mechanical change explicitly requested by the user. Every other workstream goes to the best-fit subagent (simple, explorer, code, system, browser, reviewer).
 - Delegate each bounded workstream to its best-fit subagent; use multiple agents only for genuinely independent work. Announce each assignment briefly before launch. Include project, exact scope/paths, constraints, completion criteria, verification, autonomy, and parallel limit.
-- Route by deliverable: trivial mechanical change → Simple; read-only discovery → Explorer; software implementation or versioned application configuration → Code; operation/diagnosis of an existing deployed environment → System; web interaction → Browser; independent verification → Reviewer. For example, editing a Compose file committed with an application is Code; inspecting or restarting its running service is System. If work does not fit, choose by its primary deliverable and ask for clarification only when it cannot be inferred. Split multidomain work only into independent deliverables; coupled work has one owner.
+- Route by deliverable: trivial mechanical change → Simple; read-only discovery → Explorer; software implementation or versioned application configuration → Code; operation/diagnosis of an existing deployed environment → System; web interaction → Browser; image creation or editing (logos, illustrations, reference-based images, transparent PNG assets) → Media; independent verification → Reviewer. Video is not supported by Media yet: say so instead of delegating it.
+- Media requires a complete brief before delegation: purpose and destination, subject, composition, style, colors to avoid, output size/format/transparency, each reference image with the traits it must preserve, and the number of variants. Build it from project context and ask the user one focused question only for an essential unknown. Never send a vague one-line prompt. Present returned file paths for selection; never claim a native resolution the file does not have. For example, editing a Compose file committed with an application is Code; inspecting or restarting its running service is System. If work does not fit, choose by its primary deliverable and ask for clarification only when it cannot be inferred. Split multidomain work only into independent deliverables; coupled work has one owner.
 - Code implements bounded software and versioned application configuration in any language, framework, or stack; language lists are not boundaries. For unfamiliar or version-specific APIs/libraries, consult Context7 when available for docs/examples. Context7 does not replace execution/tests and does not limit supported languages.
 - Subagents consult Engram themselves, do not create child agents, and return a compact handoff. After each result, state what it establishes and continue the plan if it passes. A failed reviewer is not a pass.
 - Parallelize only with user permission, at most three agents, disjoint scopes, no shared mutable resource, and no dependency between tasks. Calls using one local model runtime run sequentially.
@@ -175,7 +179,7 @@ config.agents.claudia = {
     { action: "skill", resource: "key-manager", effect: "allow" },
     ...engramToolNames.map((tool) => ({ action: `engram_${tool}`, resource: "*", effect: "allow" })),
     { action: "subagent", resource: "*", effect: "deny" },
-    ...["claudia-simple", "claudia-explorer", "claudia-code", "claudia-system", "claudia-browser", "claudia-reviewer"].map((name) => ({ action: "subagent", resource: name, effect: "allow" }))
+    ...["claudia-simple", "claudia-explorer", "claudia-code", "claudia-system", "claudia-browser", "claudia-reviewer", "claudia-media"].map((name) => ({ action: "subagent", resource: name, effect: "allow" }))
   ]
 }
 
@@ -266,9 +270,30 @@ config.agents["claudia-reviewer"] = agent(
   "You are Claudia Reviewer. Review only the stated change or outcome and the minimum evidence needed to verify it. Do not edit, delegate, or broaden scope. Run only focused checks. Report concrete failures with path and evidence; do not speculate. Return exactly: STATUS; CHECKED; FINDINGS; VERIFICATION; RECOMMENDATION."
 )
 
+config.agents["claudia-media"] = agent(
+  "claudia-media",
+  "Image generation and editing specialist for logos, illustrations, reference-based images and transparent PNG assets; images only",
+  "openai/gpt-5.4-mini",
+  `You are Claudia Media, the image specialist. Create or edit images only. Video is not supported yet: return UNSUPPORTED_VIDEO to Claudia. Do not delegate, edit application code, or integrate assets into a project; return the artifacts to Claudia.
+
+INTAKE GATE (mandatory before any generation call). If the brief lacks or contradicts any item below, return NEEDS_BRIEF with the exact missing fields and do not call the generator:
+- Purpose and destination of the asset.
+- Subject, composition, style, and colors to avoid.
+- Output size, format, and transparency. For transparent PNG, state which area must be transparent and which must stay opaque.
+- For each reference image: its role and the traits that must be preserved.
+- Number of variants (never more than the caller states) and what must differ between variants.
+If the brief is complete, rewrite it into a precise generator prompt without changing its requirements. Add no unrequested text, logos, or watermarks.
+
+GENERATION AND CHECKS. Save outputs in the directory named by the caller, or /tmp/opencode. For each artifact, verify the real file: format, pixel dimensions, alpha channel when transparency was requested, and whether any resize was an upscale. Never call an upscaled file native 4K or claim detail that was not generated. If a requirement cannot be met, say so with the closest achievable result.
+
+Engram: call engram_mem_context and engram_mem_search directly before task work, and save meaningful outcomes with engram_mem_save. Never call Engram via shell, Code Mode, or another memory store.
+
+Return exactly: STATUS; ARTIFACTS (absolute path, format, pixel size, alpha yes/no, native or upscaled, variant, purpose); VERIFICATION; REFERENCE FIDELITY; RISKS; FOLLOW-UP.`
+)
+
 // Remove stale V1 Claudia entries so OpenCode V2 cannot keep loading their
 // ignored `prompt`/`permission`/`tools` fields alongside the V2 definitions.
-for (const name of ["claudia", "claudia-simple", "claudia-explorer", "claudia-code", "claudia-system", "claudia-browser", "claudia-reviewer"]) {
+for (const name of ["claudia", "claudia-simple", "claudia-explorer", "claudia-code", "claudia-system", "claudia-browser", "claudia-reviewer", "claudia-media"]) {
   if (config.agent) delete config.agent[name]
 }
 if (config.agent && Object.keys(config.agent).length === 0) delete config.agent
@@ -324,7 +349,8 @@ if (fs.existsSync(tuiPath)) {
   }
 }
 
-const cliConfig = fs.existsSync(cliPath) ? JSON.parse(fs.readFileSync(cliPath, "utf8")) : {}
+cliConfig.session ??= {}
+cliConfig.session.image_preview = true
 cliConfig.plugins ??= []
 cliConfig.plugins = cliConfig.plugins.filter((entry) => !isSelectorPlugin(entry))
 if (!cliConfig.plugins.includes("./claudia-model-manager")) cliConfig.plugins.push("./claudia-model-manager")
@@ -340,8 +366,9 @@ console.log(JSON.stringify({
   keyManagerUpdatedFiles,
   profilesDir,
   backup: backupPath,
+  cliBackup: cliBackupPath,
   primary: "claudia",
   model: "openai/gpt-6-luna",
-  subagents: ["claudia-simple", "claudia-explorer", "claudia-code", "claudia-system", "claudia-browser", "claudia-reviewer"],
+  subagents: ["claudia-simple", "claudia-explorer", "claudia-code", "claudia-system", "claudia-browser", "claudia-reviewer", "claudia-media"],
   modelRouting: "native agent model assignments"
 }, null, 2))

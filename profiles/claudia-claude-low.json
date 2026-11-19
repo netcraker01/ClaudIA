@@ -22,6 +22,9 @@
     },
     "claudia-reviewer": {
       "model": "anthropic/claude-haiku-5-5"
+    },
+    "claudia-media": {
+      "model": "anthropic/claude-haiku-5-5"
     }
   }
 }

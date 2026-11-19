@@ -256,7 +256,7 @@ function verify() {
   if (cfg) {
     const agents = { ...(cfg.agent || {}), ...(cfg.agents || {}) }
     const expected = ["claudia", "claudia-simple", "claudia-explorer", "claudia-code",
-      "claudia-system", "claudia-browser", "claudia-reviewer", "claudia-light"]
+      "claudia-system", "claudia-browser", "claudia-reviewer", "claudia-media", "claudia-light"]
     const missing = expected.filter((a) => !agents[a])
     if (missing.length) problems.push(`agentes ausentes: ${missing.join(", ")}`)
     if (cfg.default_agent !== "claudia") problems.push(`default_agent es "${cfg.default_agent}", se esperaba "claudia"`)
