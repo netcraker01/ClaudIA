@@ -54,6 +54,23 @@ test("orchestration installer adds claudia-media as a /claudia-selectable subage
   assert.ok(claudiaSubagentRules.some((rule) => rule.resource === "claudia-media" && rule.effect === "allow"))
 })
 
+test("claudia-media generates images only with gpt_imagegen", (t) => {
+  const s = setup(t)
+  const result = run(s.home, "install-claudia-orchestration.mjs")
+  assert.equal(result.status, 0, result.stderr)
+  const media = readJSON(s.configPath).agents["claudia-media"]
+  assert.ok(media.system.includes("gpt_imagegen"), "gpt_imagegen missing from prompt")
+  assert.ok(media.system.includes("Never use generate_image"), "generate_image not prohibited in prompt")
+  assert.ok(
+    media.permissions.some((rule) => rule.action === "gpt_imagegen" && rule.effect === "allow"),
+    "gpt_imagegen allow permission missing"
+  )
+  assert.ok(
+    media.permissions.some((rule) => rule.action === "generate_image" && rule.effect === "deny"),
+    "generate_image deny permission missing"
+  )
+})
+
 test("claudia-media keeps its model across reinstall (menu assignment is not overwritten)", (t) => {
   const s = setup(t)
   assert.equal(run(s.home, "install-claudia-orchestration.mjs").status, 0)

@@ -162,7 +162,7 @@ Y en el TUI, con `/models` o el selector de agente, elige la sesión `claudia-li
 | `claudia-system` | Diagnóstico y operación de hosts, redes, Linux/SSH, servicios y contenedores existentes/en ejecución. | `llama-cpp/qwen3.8-27b-ud-q4-k-m` |
 | `claudia-browser` | Navegación web completa mediante terminal-browser: búsquedas, formularios, descargas y cargas. | `llama-cpp/gemma-4-26b-a4b-it-qat-ud-q4-k-xl` |
 | `claudia-reviewer` | Verificación compacta de cambios y resultados. No edita. | `llama-cpp/gemma-4-12b-it-ud-q4-k-xl` |
-| `claudia-media` | Imágenes (logotipos, ilustraciones, referencias, PNG con transparencia). Exige brief completo; sin vídeo por ahora. Modelo asignable desde `/claudia`. | `openai/gpt-5.4-mini` |
+| `claudia-media` | Imágenes (logotipos, ilustraciones, referencias, PNG con transparencia) generadas con `gpt_imagegen` (plugin opencode-gpt-imagegen). Exige brief completo; sin vídeo por ahora. Modelo asignable desde `/claudia`. | `openai/gpt-5.4-mini` |
 
 Los prompts compactos indican a los subagentes que no creen subdelegaciones. Sus herramientas se permiten con `* allow`; las rutas externas se someten a una pregunta de autorización para que un permiso de archivos no se convierta en un bloqueo opaco.
 
