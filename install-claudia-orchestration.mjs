@@ -55,6 +55,12 @@ config.plugins = config.plugins.filter((entry) => {
   return !id.startsWith("@ex-machina/opencode-anthropic-auth")
 })
 config.plugins.push(anthropicAuthPlugin)
+// gpt_imagegen plugin: add once; keep any existing entry (string or { package, options }) untouched.
+const gptImagegenPlugin = "opencode-gpt-imagegen"
+const pluginId = (entry) => String(Array.isArray(entry) ? entry[0] : entry?.package || entry)
+if (!config.plugins.some((entry) => pluginId(entry).startsWith(gptImagegenPlugin))) {
+  config.plugins.push(gptImagegenPlugin)
+}
 // Engram is a hard runtime dependency for Claudia. Ensure the MCP server is
 // connected instead of installing agents that cannot perform their required
 // pre-task memory lookup.
@@ -276,17 +282,25 @@ config.agents["claudia-media"] = agent(
   "openai/gpt-5.4-mini",
   `You are Claudia Media, the image specialist. Create or edit images only. Video is not supported yet: return UNSUPPORTED_VIDEO to Claudia. Do not delegate, edit application code, or integrate assets into a project; return the artifacts to Claudia.
 
-IMAGE TOOL (mandatory). Generate and edit every image only with the gpt_imagegen tool provided by the opencode-gpt-imagegen plugin. Never use generate_image or any other image tool. If gpt_imagegen is not in your native tool list, return STATUS BLOCKED with the exact error and generate nothing with another tool.
+IMAGE TOOL (mandatory). Use only the gpt_imagegen tool (plugin opencode-gpt-imagegen) for every image generation or edit. Never use generate_image or any other image tool. If gpt_imagegen is not in your native tool list, return STATUS BLOCKED with the exact error; do not substitute another tool.
+- Parameters: prompt (describe the image; do not name the tool in it); out (required, absolute path inside the caller's directory or /tmp/opencode); size (exactly one of 1254x1254 (1:1), 1536x1024 (3:2), 1024x1536 (2:3), 1448x1086 (4:3), 1086x1448 (3:4), 1672x941 (16:9), 941x1672 (9:16)); images (optional, up to 5 paths); background ("opaque" by default, "transparent" only when requested).
+- Size: if the caller asks for any other size, return NEEDS_BRIEF asking which supported size to use; never invent one. If no size is given and the shape is implicit (YouTube thumbnail or banner 16:9, app icon 1:1, phone wallpaper 9:16), pick the matching size and state it in ARTIFACTS. Output may differ by 1 px; never promise exact pixels. If the caller explicitly authorizes an other exact size after NEEDS_BRIEF, generate at the closest supported size, then resize or crop with ImageMagick and report it as resized; never promise exact pixels.
+- Output path: the tool never overwrites; it adds -v2, -v3 when out exists. Report the path the tool returns, not the requested one.
+- References: pass up to 5 paths in images. In the prompt refer to them as "Image 1", "Image 2", etc., stating each one's role and the traits to preserve. Without references, omit images.
+- Transparency: for a cutout, use background "transparent" only if requested; otherwise generate on a plain flat background. Edges may carry a semi-transparent halo; declare this in RISKS. Remove the background with ImageMagick only if the caller authorizes it.
+- Editing: pass the original image in images, describe only the requested change, state what must stay unchanged, and write to a new out path.
+- Add no unrequested text, logos, or watermarks.
+- Authentication (OpenAI OAuth) or tool failure: return STATUS BLOCKED with the exact error; do not retry in a loop.
 
 INTAKE GATE (mandatory before any generation call). If the brief lacks or contradicts any item below, return NEEDS_BRIEF with the exact missing fields and do not call the generator:
 - Purpose and destination of the asset.
 - Subject, composition, style, and colors to avoid.
-- Output size, format, and transparency. For transparent PNG, state which area must be transparent and which must stay opaque.
+- Output size (one of the seven supported values, or an implicit shape mapped to one), format, and transparency. For transparent PNG, state which area must be transparent and which must stay opaque.
 - For each reference image: its role and the traits that must be preserved.
 - Number of variants (never more than the caller states) and what must differ between variants.
 If the brief is complete, rewrite it into a precise generator prompt without changing its requirements. Add no unrequested text, logos, or watermarks.
 
-GENERATION AND CHECKS. Save outputs in the directory named by the caller, or /tmp/opencode. For each artifact, verify the real file: format, pixel dimensions, alpha channel when transparency was requested, and whether any resize was an upscale. Never call an upscaled file native 4K or claim detail that was not generated. If a requirement cannot be met, say so with the closest achievable result.
+VERIFICATION. After each generation, check the real file with identify or file: format, pixel dimensions, and alpha channel when transparency was requested. Report any resize as resized (never native). Never claim detail that was not generated. If a requirement cannot be met, say so with the closest achievable result.
 
 Engram: call engram_mem_context and engram_mem_search directly before task work, and save meaningful outcomes with engram_mem_save. Never call Engram via shell, Code Mode, or another memory store.
 
@@ -362,6 +376,18 @@ cliConfig.plugins ??= []
 cliConfig.plugins = cliConfig.plugins.filter((entry) => !isSelectorPlugin(entry))
 if (!cliConfig.plugins.includes("./claudia-model-manager")) cliConfig.plugins.push("./claudia-model-manager")
 atomicWrite(cliPath, `${JSON.stringify(cliConfig, null, 2)}\n`)
+
+// Only the auth type is read; no token is loaded into output or logs.
+const openaiAuthPath = path.join(os.homedir(), ".local", "share", "opencode", "auth.json")
+let openaiAuthType
+try {
+  openaiAuthType = JSON.parse(fs.readFileSync(openaiAuthPath, "utf8")).openai?.type
+} catch {
+  openaiAuthType = undefined
+}
+if (openaiAuthType !== "oauth") {
+  console.warn("gpt_imagegen requires OpenAI OAuth (Codex legacy) in OpenCode V2. Log in with OpenAI OAuth before using claudia-media.")
+}
 
 console.log(JSON.stringify({
   status: "installed",

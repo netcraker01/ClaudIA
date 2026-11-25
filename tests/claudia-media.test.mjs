@@ -71,6 +71,25 @@ test("claudia-media generates images only with gpt_imagegen", (t) => {
   )
 })
 
+test("claudia-media image prompt documents the gpt_imagegen contract", (t) => {
+  const s = setup(t)
+  assert.equal(run(s.home, "install-claudia-orchestration.mjs").status, 0)
+  const prompt = readJSON(s.configPath).agents["claudia-media"].system
+  for (const size of ["1254x1254", "1536x1024", "1024x1536", "1448x1086", "1086x1448", "1672x941", "941x1672"]) {
+    assert.ok(prompt.includes(size), `size ${size} missing from prompt`)
+  }
+  assert.ok(prompt.includes("out (required"), "out must be required")
+  assert.ok(prompt.includes("never overwrites") || prompt.includes("never overwrite"), "no-overwrite rule missing")
+  assert.ok(prompt.includes("up to 5 paths"), "reference limit missing")
+  assert.ok(prompt.includes("Image 1"), "Image 1 labeling missing")
+  assert.ok(prompt.includes('"transparent"'), "transparent background missing")
+  assert.ok(prompt.includes("halo"), "halo risk missing")
+  assert.ok(prompt.includes("NEEDS_BRIEF"), "NEEDS_BRIEF missing for other-size requests")
+  assert.ok(prompt.includes("resized"), "resize reporting rule missing")
+  assert.ok(prompt.includes("Never use generate_image"), "generate_image not prohibited")
+  assert.ok(!prompt.includes("quality"), "quality parameter must not be documented")
+})
+
 test("claudia-media keeps its model across reinstall (menu assignment is not overwritten)", (t) => {
   const s = setup(t)
   assert.equal(run(s.home, "install-claudia-orchestration.mjs").status, 0)
